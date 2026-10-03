@@ -1,0 +1,100 @@
+.page {
+  min-height: 100dvh;
+  padding: 12px;
+  background: #f5f6f8;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.topbar {
+  width: 100%;
+  max-width: 1536px;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  flex-shrink: 0;
+}
+
+.topbar a { min-height: 44px; }
+
+.workspace {
+  width: 100%;
+  max-width: 1536px;
+  margin-inline: auto;
+  min-height: 0;
+  min-width: 0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 3px #18202c08;
+}
+
+.heading h1 { font-size: clamp(24px, 2vw, 30px); font-weight: 700; letter-spacing: -.6px; line-height: 1.2; }
+.heading p { margin-top: 4px; color: #626d80; font-size: 14px; line-height: 1.5; }
+
+.editorGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; min-height: 0; }
+.editColumn { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.fields { display: flex; flex-direction: column; gap: 12px; min-height: 0; container-type: inline-size; }
+.section { display: flex; flex-direction: column; flex-shrink: 0; gap: 12px; min-width: 0; padding: 16px; border: 1px solid #e4e7ee; border-radius: 10px; background: #fff; }
+.colorsGrid, .imageFields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.buttonRow { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+.buttonControls { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.actionBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-top: 12px;
+  padding-block: 12px;
+  border-top: 1px solid #e4e7ee;
+  background: #fff;
+}
+
+.actionButtons { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.actionButtons button { min-height: 44px; }
+.previewColumn { min-width: 0; padding: 16px; border-radius: 12px; background: #f5f6f8; }
+.previewTitle { margin-bottom: 16px; text-align: center; font-size: 14px; font-weight: 500; color: #626d80; }
+.previewViewport { width: 100%; max-width: 420px; margin-inline: auto; max-height: 70dvh; overflow-y: auto; }
+
+@container (min-width: 440px) {
+  .colorsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .imageFields { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+}
+
+@container (min-width: 680px) {
+  .buttonRow { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+}
+
+@media (min-width: 640px) {
+  .page { padding: 16px 24px; }
+  .workspace { padding: 24px; }
+  .actionButtons { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 900px) {
+  .page { height: 100dvh; min-height: 600px; }
+  .workspace { flex: 1; gap: 16px; }
+  .heading { flex-shrink: 0; }
+  .editorGrid { flex: 1; grid-template-columns: minmax(0, 1fr) minmax(280px, 32%); gap: 24px; }
+  .fields { flex: 1; overflow-y: auto; scrollbar-gutter: stable; padding: 3px 8px 3px 3px; scroll-padding-block: 12px; }
+  .section { padding: 12px 16px; }
+  .actionBar { position: static; margin-top: 8px; padding-bottom: 0; }
+  .previewColumn { align-self: start; position: sticky; top: 0; padding: 16px 12px; max-height: 100%; overflow-y: auto; }
+}
+
+@media (min-width: 1280px) {
+  .page { padding-inline: 32px; }
+  .workspace { padding-inline: 32px; }
+  .editorGrid { gap: 32px; }
+}

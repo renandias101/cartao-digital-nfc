@@ -1,0 +1,356 @@
+@import "tailwindcss";
+
+/*
+ * Tokens do painel (administrador e cliente).
+ *
+ * A aparência da página pública do cartão NÃO vem daqui: cor de fundo e cor
+ * dos botões são escolhidas pelo cliente e chegam como dado (PRD §8, §9).
+ *
+ * Os nomes seguem a convenção do shadcn/ui, para que adotá-lo numa etapa
+ * futura não exija renomear nada.
+ */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.21 0.006 285.9);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.006 285.9);
+
+  --muted: oklch(0.967 0.001 286.4);
+  --muted-foreground: oklch(0.552 0.014 285.9);
+
+  /*
+   * Destaque dourado/ocre — mesma família do login (#c68328). O tom de
+   * `--primary` é mais escuro que o dourado decorativo de propósito: texto
+   * branco sobre ele e ele como texto sobre branco passam de 4.5:1 (WCAG AA).
+   */
+  --primary: #a06a1c;
+  --primary-hover: #8a5a15;
+  --primary-foreground: #ffffff;
+  --gold: #c68328;
+  --accent-soft: #f8f0e3;
+
+  --destructive: oklch(0.577 0.222 27.3);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border: oklch(0.92 0.004 286.3);
+  --input: oklch(0.88 0.004 286.3);
+  --ring: #b87a26;
+  --ring-soft: rgb(184 122 38 / 0.2);
+
+  /* Estrutura do painel: fundo da área de conteúdo e sidebar grafite. */
+  --canvas: #f6f5f2;
+  --sidebar: #121316;
+  --sidebar-foreground: #f1efeb;
+  --sidebar-muted: #a2a4ab;
+  --sidebar-active: rgb(198 131 40 / 0.18);
+
+  --success: #1f7a4a;
+  --success-soft: #e8f5ee;
+  --warning: #8a5a0b;
+  --warning-soft: #fdf3e1;
+
+  --radius: 0.625rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-gold: var(--gold);
+  --color-accent-soft: var(--accent-soft);
+  --color-canvas: var(--canvas);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-md: var(--radius);
+
+  /*
+   * Pilha de fontes do sistema: zero requisição de rede e zero deslocamento de
+   * layout por fonte carregando. A página pública é aberta por NFC em internet
+   * móvel, onde cada requisição pesa (PRD §52).
+   */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Indicador de foco visível para navegação por teclado (Qualidade 21-25). */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Respeita quem pediu menos animação no sistema operacional. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/*
+ * Peças visuais compartilhadas do painel (cliente e administrador). Ficam em
+ * `components` para que qualquer utilitário do Tailwind na mesma tag ainda
+ * consiga sobrescrevê-las. A página pública não usa nenhuma destas classes.
+ */
+@layer components {
+  .ui-card {
+    background-color: var(--card);
+    color: var(--card-foreground);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px rgb(18 19 22 / 0.04), 0 4px 16px -8px rgb(18 19 22 / 0.08);
+  }
+
+  .ui-card-title {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .ui-card-title > svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+    color: var(--gold);
+  }
+
+  .ui-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .ui-hint {
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--muted-foreground);
+  }
+
+  .ui-input {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.625rem;
+    padding: 0.5rem 0.875rem;
+    border: 1px solid var(--input);
+    border-radius: var(--radius);
+    background-color: var(--card);
+    color: var(--foreground);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    transition:
+      border-color 150ms,
+      box-shadow 150ms;
+  }
+
+  .ui-input::placeholder {
+    color: var(--muted-foreground);
+  }
+
+  .ui-input:hover:not(:disabled) {
+    border-color: oklch(0.8 0.004 286.3);
+  }
+
+  .ui-input:focus-visible {
+    outline: none;
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px var(--ring-soft);
+  }
+
+  .ui-input:disabled {
+    cursor: not-allowed;
+    background-color: var(--muted);
+    color: var(--muted-foreground);
+  }
+
+  textarea.ui-input {
+    resize: vertical;
+    padding-block: 0.625rem;
+  }
+
+  .ui-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.375rem 1rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25;
+    text-align: center;
+    cursor: pointer;
+    transition:
+      background-color 150ms,
+      border-color 150ms,
+      color 150ms,
+      box-shadow 150ms;
+  }
+
+  .ui-btn > svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  .ui-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .ui-btn-primary {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: 0 1px 2px rgb(122 79 18 / 0.25);
+  }
+
+  .ui-btn-primary:hover:not(:disabled) {
+    background-color: var(--primary-hover);
+  }
+
+  .ui-btn-outline {
+    background-color: var(--card);
+    border-color: var(--input);
+    color: var(--foreground);
+  }
+
+  .ui-btn-outline:hover:not(:disabled) {
+    background-color: var(--muted);
+    border-color: oklch(0.8 0.004 286.3);
+  }
+
+  .ui-btn-ghost {
+    background-color: transparent;
+    color: var(--muted-foreground);
+  }
+
+  .ui-btn-ghost:hover:not(:disabled) {
+    background-color: var(--muted);
+    color: var(--foreground);
+  }
+
+  .ui-btn-danger {
+    background-color: var(--destructive);
+    color: var(--destructive-foreground);
+  }
+
+  .ui-btn-danger:hover:not(:disabled) {
+    background-color: oklch(0.5 0.21 27.3);
+  }
+
+  .ui-btn-danger-outline {
+    background-color: var(--card);
+    border-color: color-mix(in oklab, var(--destructive) 35%, transparent);
+    color: var(--destructive);
+  }
+
+  .ui-btn-danger-outline:hover:not(:disabled) {
+    background-color: color-mix(in oklab, var(--destructive) 8%, transparent);
+  }
+
+  .ui-btn-sm {
+    min-height: 2.25rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .ui-btn-icon {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding: 0;
+  }
+
+  /* Telas de toque: alvo mínimo de 44px (WCAG 2.5.5 / Apple HIG). */
+  @media (pointer: coarse) {
+    .ui-input,
+    .ui-btn,
+    .ui-btn-sm {
+      min-height: 2.75rem;
+    }
+
+    .ui-btn-icon {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+  }
+
+  /* Seletor de cor nativo, sem a moldura padrão do navegador em volta da amostra. */
+  .ui-color {
+    width: 2.5rem;
+    height: 2rem;
+    flex-shrink: 0;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .ui-color::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  .ui-color::-webkit-color-swatch {
+    border: none;
+    border-radius: calc(0.5rem - 1px);
+  }
+
+  .ui-color::-moz-color-swatch {
+    border: none;
+    border-radius: calc(0.5rem - 1px);
+  }
+
+  .ui-link-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.25rem;
+    font-size: 0.875rem;
+    color: var(--muted-foreground);
+    border-radius: 0.375rem;
+  }
+
+  .ui-link-back:hover {
+    color: var(--foreground);
+  }
+
+  .ui-link-back > svg {
+    width: 1rem;
+    height: 1rem;
+  }
+}
