@@ -126,6 +126,7 @@ async function principal() {
     "20260930180000_normalizar_username_pagina_publica.sql",
     "20260930190000_username_exists_cobre_cliente_excluido.sql",
     "20261003150000_card_profession.sql",
+    "20261003190000_card_accent_color.sql",
   ];
   for (const m of migracoes) {
     await db.exec(readFileSync(join(AQUI, "..", "migrations", m), "utf8"));
@@ -1626,7 +1627,9 @@ async function principal() {
       {profession: "a".repeat(60)}, {profession: "a".repeat(61)}, {profession: 123},
       {profession: null}, {profession: "😀".repeat(60)}, {professionColor: "#d4a853"},
       {professionColor: "#abc"}, {professionColor: "red"}, {professionColor: null},
-      {professionColor: "url(https://example.com)"}].map(extra => ({
+      {professionColor: "url(https://example.com)"}, {accentColor: "#fab754"}, {accentColor: "#abc"},
+      {accentColor: "red"}, {accentColor: null}, {accentColor: 7}, {accentColor: "#fab754; color: red"},
+      {accentColor: "url(https://example.com)"}].map(extra => ({
         buttons: [], displayName: "Teste", backgroundColor: "#000000", buttonColor: "#ffffff", ...extra,
       })),
     { buttons: [] },
@@ -1659,7 +1662,7 @@ async function principal() {
     for (const requireComplete of [false, true]) {
       const ts = validarConteudoCartao(caso, requireComplete).valido;
       const sql = await db
-        .query("select public.validate_card_content($1::jsonb, $2::boolean) and public.validate_card_profession($1::jsonb) as v", [
+        .query("select public.validate_card_content($1::jsonb, $2::boolean) and public.validate_card_profession($1::jsonb) and public.validate_card_accent_color($1::jsonb) as v", [
           JSON.stringify(caso),
           requireComplete,
         ])
@@ -2376,6 +2379,16 @@ async function principal() {
     where client_id = '${CASE_CLIENTE}';
   `);
   verificar("banco rejeita cor inválida da profissão", !invalidProfessionColor.ok);
+  const invalidAccentColor = await comoPapel(db, "authenticated", CASE_CLIENTE, `
+    update public.card_drafts set content = content || '{"accentColor":"url(https://example.com/x.png)"}'::jsonb
+    where client_id = '${CASE_CLIENTE}';
+  `);
+  verificar("banco rejeita cor de destaque fora do formato hexadecimal", !invalidAccentColor.ok);
+  const validAccentColor = await comoPapel(db, "authenticated", CASE_CLIENTE, `
+    update public.card_drafts set content = content || '{"accentColor":"#fab754"}'::jsonb
+    where client_id = '${CASE_CLIENTE}';
+  `);
+  verificar("banco aceita cor de destaque hexadecimal", validAccentColor.ok);
 
   await db.close();
 

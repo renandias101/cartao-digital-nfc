@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
 import {
   IconCard,
@@ -15,51 +15,57 @@ import {
   IconPhone,
   IconWhatsApp,
 } from "@/components/icons";
-import type { FeaturedLinkKind } from "@/lib/card/presentation";
+import {
+  isSystemIconKey,
+  isUploadedIcon,
+  resolveButtonIcon,
+  type FeaturedLinkKind,
+  type SystemIconKey,
+} from "@/lib/card/presentation";
 import type { CardButton, LinkButton } from "@/lib/card/types";
 import styles from "@/components/digital-card.module.css";
 
 const labels = { link: "Link", text: "Informações", wifi: "Wi-Fi", pix: "PIX", phone: "Telefone", address: "Endereço" };
 
-function ButtonIcon({ button, className }: { button: CardButton; className?: string }) {
-  if (button.icon?.startsWith("https://") || button.icon?.startsWith("/")) {
+const SYSTEM_ICON_COMPONENTS: Record<SystemIconKey, ComponentType<{ className?: string }>> = {
+  monitor: IconMonitor,
+  link: IconLink,
+  "map-pin": IconMapPin,
+  phone: IconPhone,
+  whatsapp: IconWhatsApp,
+  instagram: IconInstagram,
+  linkedin: IconLinkedIn,
+  email: IconMail,
+  note: IconNote,
+  lock: IconLock,
+  card: IconCard,
+};
+
+/** Ícone enviado > ícone escolhido > `fallback` (deduzido pelo tipo e título). */
+function ButtonIcon({ button, className, fallback = resolveButtonIcon(button) }: {
+  button: CardButton;
+  className?: string;
+  fallback?: SystemIconKey;
+}) {
+  if (isUploadedIcon(button.icon)) {
     return <Image src={button.icon} alt="" width={32} height={32} className={className} />;
   }
-  const title = button.title?.toLocaleLowerCase("pt-BR") ?? "";
-  if (button.type === "link" && /serviç/.test(title)) return <IconMonitor className={className} />;
-  if (/localiza|endereç/.test(title)) return <IconMapPin className={className} />;
-  switch (button.type) {
-    case "link": return <IconLink className={className} />;
-    case "text": return <IconNote className={className} />;
-    case "wifi": return <IconLock className={className} />;
-    case "pix": return <IconCard className={className} />;
-    case "phone": return <IconPhone className={className} />;
-    case "address": return <IconMapPin className={className} />;
-  }
+  const Icon = SYSTEM_ICON_COMPONENTS[isSystemIconKey(button.icon) ? button.icon : fallback];
+  return <Icon className={className} />;
 }
 
-function FeaturedIcon({ kind, className }: { kind: FeaturedLinkKind; className?: string }) {
-  switch (kind) {
-    case "whatsapp": return <IconWhatsApp className={className} />;
-    case "instagram": return <IconInstagram className={className} />;
-    case "linkedin": return <IconLinkedIn className={className} />;
-    case "email": return <IconMail className={className} />;
-  }
-}
-
-export function FeaturedLink({ button, kind }: { button: LinkButton; kind: FeaturedLinkKind }) {
+export function FeaturedLink({ button, kind }: { button: LinkButton; kind: FeaturedLinkKind | null }) {
   return (
     <a
       href={button.url}
       target="_blank"
       rel="noopener noreferrer"
       className={styles.featuredLink}
+      data-button-id={button.id}
       aria-label={`Abrir ${button.title}`}
     >
       <span className={styles.featuredIconBox}>
-        {button.icon?.startsWith("https://") || button.icon?.startsWith("/")
-          ? <Image src={button.icon} alt="" width={36} height={36} className={styles.featuredIcon} />
-          : <FeaturedIcon kind={kind} className={styles.featuredIcon} />}
+        <ButtonIcon button={button} fallback={kind ?? undefined} className={styles.featuredIcon} />
       </span>
       <span className={styles.featuredLabel}>{button.title}</span>
     </a>
@@ -79,7 +85,7 @@ export function ButtonView({ button }: { button: CardButton }) {
   </>;
 
   if (button.type === "link") {
-    return <a href={button.url} target="_blank" rel="noopener noreferrer" className={styles.action}>{heading}</a>;
+    return <a href={button.url} target="_blank" rel="noopener noreferrer" className={styles.action} data-button-id={button.id}>{heading}</a>;
   }
 
   let details: ReactNode;
@@ -110,7 +116,7 @@ export function ButtonView({ button }: { button: CardButton }) {
       </>;
       break;
   }
-  return <details className={styles.details}>
+  return <details className={styles.details} data-button-id={button.id}>
     <summary className={styles.action}>{heading}</summary>
     <div className={styles.detailsContent}>{details}</div>
   </details>;

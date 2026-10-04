@@ -1,11 +1,14 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { logoutAction } from "@/app/painel/actions";
 import { ChangePasswordForm } from "@/app/painel/change-password-form";
+import { CardEditor } from "@/app/painel/editor/card-editor";
+import editorStyles from "@/app/painel/editor/editor.module.css";
 import { CopyButton } from "@/components/copy-button";
-import { IconAlert, IconClock, IconEdit, IconExternal, IconLink } from "@/components/icons";
+import { IconAlert, IconClock, IconExternal, IconLink, IconLogout } from "@/components/icons";
 import { StatusBadge } from "@/components/status-badge";
 import { buscarPainelDoCliente } from "@/lib/card/dashboard";
+import { getDraft } from "@/lib/card/draft";
 import { getActor } from "@/lib/auth/session";
 import { publicEnv, urlPublicaDoCartao } from "@/lib/env";
 
@@ -21,12 +24,12 @@ function linkWhatsapp(): string {
 }
 
 /**
- * Painel do cliente (PRD §20-§22, §25, §32).
+ * Área do cliente em uma única página (PRD §14, §15, §20-§22, §25, §32):
+ * link e situação do cartão, editor com prévia e troca de senha.
  *
  * O `proxy.ts` já redireciona quem não está logado antes de chegar aqui
  * (conveniência de navegação, D19); esta página confere de novo — é ela a
- * autoridade de verdade sobre quem pode vê-la (D7). O botão "Sair" fica na
- * sidebar (`painel/layout.tsx`).
+ * autoridade de verdade sobre quem pode vê-la (D7).
  */
 export default async function PainelPage() {
   const actor = await getActor();
@@ -37,7 +40,7 @@ export default async function PainelPage() {
     redirect("/admin");
   }
 
-  const painel = await buscarPainelDoCliente();
+  const [painel, content] = await Promise.all([buscarPainelDoCliente(), getDraft()]);
   if (!painel) {
     // Sessão válida mas sem linha em `clients` — não deveria acontecer no
     // fluxo normal (só admin não tem linha em clients, e já foi tratado
@@ -56,15 +59,28 @@ export default async function PainelPage() {
   const venceLogo = ativo && painel.daysUntilExpiry <= 15;
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
-      <header>
-        <h1 className="break-words text-2xl font-semibold tracking-tight">
+    <main className={editorStyles.page}>
+      <header className={editorStyles.topbar}>
+        <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">
           Olá, {painel.fullName}
         </h1>
+        <div className="flex flex-wrap gap-2">
+          <a href={`/${painel.username}`} target="_blank" rel="noopener noreferrer"
+            className="ui-btn ui-btn-outline">
+            <IconExternal />
+            Ver meu cartão
+          </a>
+          <form action={logoutAction}>
+            <button type="submit" className="ui-btn ui-btn-outline">
+              <IconLogout />
+              Sair
+            </button>
+          </form>
+        </div>
       </header>
 
       {!ativo ? (
-        <section className="flex flex-col gap-4 rounded-2xl border border-destructive/25 bg-destructive/5 p-5 text-sm sm:flex-row sm:items-center sm:justify-between">
+        <section className={`${editorStyles.band} flex flex-col gap-4 rounded-2xl border border-destructive/25 bg-destructive/5 p-5 text-sm sm:flex-row sm:items-center sm:justify-between`}>
           <div className="flex gap-3">
             <IconAlert className="mt-0.5 size-5 shrink-0 text-destructive" />
             <p className="leading-relaxed">
@@ -83,7 +99,7 @@ export default async function PainelPage() {
           </a>
         </section>
       ) : venceLogo ? (
-        <section className="flex flex-col gap-4 rounded-2xl border border-warning/20 bg-warning-soft p-5 text-sm sm:flex-row sm:items-center sm:justify-between">
+        <section className={`${editorStyles.band} flex flex-col gap-4 rounded-2xl border border-warning/20 bg-warning-soft p-5 text-sm sm:flex-row sm:items-center sm:justify-between`}>
           <div className="flex items-center gap-3">
             <IconClock className="size-5 shrink-0 text-warning" />
             <p className="font-medium text-warning">
@@ -102,30 +118,17 @@ export default async function PainelPage() {
         </section>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <section className="ui-card flex min-w-0 flex-col gap-4 p-5 sm:p-6 lg:col-span-2">
+      <div className={`${editorStyles.band} grid gap-3 lg:grid-cols-3`}>
+        <section className="ui-card flex min-w-0 flex-col gap-3 p-5 lg:col-span-2">
           <h2 className="ui-card-title">
             <IconLink />
             Seu cartão
           </h2>
-          <p className="break-all rounded-lg border border-border bg-muted px-3.5 py-2.5 text-sm font-medium">
-            {url}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/painel/editor" className="ui-btn ui-btn-primary">
-              <IconEdit />
-              Editar cartão
-            </Link>
-            <CopyButton value={url} label="Copiar link" className="ui-btn ui-btn-outline" />
-            <a
-              href={`/${painel.username}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ui-btn ui-btn-outline"
-            >
-              <IconExternal />
-              Visualizar cartão
-            </a>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <p className="min-w-0 flex-1 break-all rounded-lg border border-border bg-muted px-3.5 py-2.5 text-sm font-medium">
+              {url}
+            </p>
+            <CopyButton value={url} label="Copiar link" className="ui-btn ui-btn-outline shrink-0" />
           </div>
           {painel.temAlteracoesNaoPublicadas ? (
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -135,7 +138,7 @@ export default async function PainelPage() {
           ) : null}
         </section>
 
-        <section className="ui-card flex min-w-0 flex-col gap-4 p-5 sm:p-6">
+        <section className="ui-card flex min-w-0 flex-col gap-3 p-5">
           <h2 className="ui-card-title">
             <IconClock />
             Situação do cartão
@@ -160,11 +163,27 @@ export default async function PainelPage() {
             ) : null}
           </dl>
         </section>
-
-        <section className="ui-card min-w-0 p-5 sm:p-6 lg:col-span-3">
-          <ChangePasswordForm />
-        </section>
       </div>
+
+      <section id="editor" className={editorStyles.workspace} aria-labelledby="editor-title">
+        <header className={editorStyles.heading}>
+          <h2 id="editor-title">Editor do cartão</h2>
+          <p>
+            Personalize as informações e veja o resultado em tempo real.
+          </p>
+        </header>
+        {content ? (
+          <CardEditor initialContent={content} isActive={ativo} />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Não foi possível carregar seu cartão. Tente novamente.
+          </p>
+        )}
+      </section>
+
+      <section className={`${editorStyles.band} ui-card min-w-0 p-5 sm:p-6`}>
+        <ChangePasswordForm />
+      </section>
     </main>
   );
 }

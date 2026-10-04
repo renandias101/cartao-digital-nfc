@@ -13,7 +13,7 @@ const supabaseHostname = process.env.NEXT_PUBLIC_SUPABASE_URL
 const nextConfig: NextConfig = {
   // Permite que dispositivos da rede local acessem os recursos e endpoints
   // exclusivos do servidor de desenvolvimento pelo endereço desta máquina.
-  allowedDevOrigins: ["192.168.1.67"],
+  allowedDevOrigins: ["192.168.1.67", "192.168.1.68"],
 
   experimental: {
     serverActions: {

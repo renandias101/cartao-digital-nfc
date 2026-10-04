@@ -4,7 +4,7 @@ import { ButtonView, FeaturedLink } from "@/app/[username]/button-view";
 import { CardProfession } from "@/components/card-profession";
 import { SaveContactButton } from "@/components/save-contact-button";
 import { botoesVisiveis } from "@/lib/card/buttons";
-import { getCardInitials, organizeCardButtons } from "@/lib/card/presentation";
+import { getAccentColor, getCardInitials, organizeCardButtons } from "@/lib/card/presentation";
 import { getContrastingColor } from "@/lib/card/profession";
 import type { CardContent } from "@/lib/card/types";
 import { getContactCardData } from "@/lib/card/vcard";
@@ -16,11 +16,7 @@ export function DigitalCard({ content, preview = false }: { content: CardContent
   const surface = content.buttonColor ?? "#1c1c1c";
   const foreground = getContrastingColor(background);
   const surfaceForeground = getContrastingColor(surface);
-  // No tema escuro, o dourado distingue a ação principal das superfícies.
-  // A cor da profissão continua independente das demais escolhas visuais.
-  const accent = foreground === "#ffffff" && surfaceForeground === "#ffffff"
-    ? "#ffbf52"
-    : surface;
+  const accent = getAccentColor(content);
   const Heading = preview ? "h2" : "h1";
   const buttons = botoesVisiveis(content);
   const { featured, regular } = organizeCardButtons(buttons);
@@ -54,15 +50,17 @@ export function DigitalCard({ content, preview = false }: { content: CardContent
         <CardProfession content={content} className={styles.profession} />
         {content.description ? <p className={styles.description}>{content.description}</p> : null}
       </header>
+      {/* `data-button-zone`: só marca as áreas para o arrastar da prévia do
+          editor. Na prévia, a área vazia existe escondida para servir de destino. */}
       {featured.length ? (
-        <nav className={styles.featuredLinks} aria-label="Contato e redes sociais">
+        <nav className={styles.featuredLinks} aria-label="Contato e redes sociais" data-button-zone="square">
           {featured.map(({ button, kind }) => <FeaturedLink key={button.id} button={button} kind={kind} />)}
         </nav>
-      ) : null}
+      ) : preview ? <div className={styles.featuredLinks} data-button-zone="square" data-empty-zone hidden /> : null}
       {contact ? <div className={styles.saveContactWrap}><SaveContactButton contact={contact} /></div> : null}
-      {regular.length ? <div className={styles.links}>
+      {regular.length ? <div className={styles.links} data-button-zone="row">
         {regular.map(button => <ButtonView key={button.id} button={button} />)}
-      </div> : null}
+      </div> : preview ? <div className={styles.links} data-button-zone="row" data-empty-zone hidden /> : null}
     </article>
   );
 }

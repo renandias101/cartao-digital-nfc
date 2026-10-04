@@ -103,6 +103,7 @@ export function duplicarConteudoSemDadosPessoais(original: CardContent): CardCon
     backgroundColor: original.backgroundColor,
     buttonColor: original.buttonColor,
     professionColor: original.professionColor,
+    accentColor: original.accentColor,
     buttons: original.buttons.map((b) => botaoPlaceholder(b.type, crypto.randomUUID(), b.enabled)),
   };
 }

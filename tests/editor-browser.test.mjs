@@ -222,6 +222,8 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     assert.ok(await evaluate("document.documentElement.scrollWidth <= innerWidth"), `Sem overflow horizontal em ${width}px`);
     await click("Salvar rascunho");
     await until("window.fixture.saved?.profession === 'Desenvolvedor Web'");
+    // Publicar exige o rascunho confirmado na tela, não só a action chamada.
+    await until("document.querySelector('[role=status]')?.textContent === 'Rascunho salvo.'");
     await click("Publicar alterações");
     await until("window.fixture.published?.professionColor === '#3154ae'");
     await evaluate("window.fixture.showPublic()");
@@ -263,7 +265,7 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     assert.equal(await evaluate("document.querySelectorAll('[data-digital-card] details button').length"), 3);
     assert.equal(await evaluate("document.querySelector('[data-digital-card]').textContent.includes('Oculto')"), false);
     assert.ok(await evaluate("document.querySelector('[data-digital-card]').textContent.includes('Texto completo')"));
-    assert.ok(await evaluate("document.querySelector('[data-digital-card]').textContent.includes('Salvar contato')"));
+    assert.ok(await evaluate("document.querySelector('[data-digital-card]').textContent.includes('Salvar Contato')"));
     assert.ok(await evaluate("document.documentElement.scrollWidth <= innerWidth"), "Grade social sem overflow");
     await screenshot(`social-public-${width}.png`);
     await evaluate(`Object.assign(window.fixture.published, {

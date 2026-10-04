@@ -15,6 +15,7 @@ import {
   IconCheck,
   IconChevronDown,
   IconChevronUp,
+  IconGrip,
   IconGrid,
   IconImage,
   IconPalette,
@@ -31,6 +32,8 @@ import {
 import { validarConteudoCartao as validarCartao } from "@/lib/card/validation";
 import { LIMITES_TEXTO, MAX_BOTOES } from "@/lib/constants";
 import { createButtonId } from "@/lib/card/button-id";
+import { getAccentColor, getButtonLayouts, moveButtonToLayout } from "@/lib/card/presentation";
+import { useButtonDrag, type DropTarget } from "@/app/painel/editor/use-button-drag";
 import { getProfessionColor } from "@/lib/card/profession";
 import type { CardButton, CardContent } from "@/lib/card/types";
 import styles from "./editor.module.css";
@@ -143,18 +146,32 @@ export function CardEditor({
     });
   }
 
-  function moverBotao(id: string, direcao: -1 | 1) {
-    setContent((atual) => {
-      const indice = atual.buttons.findIndex((b) => b.id === id);
-      const novoIndice = indice + direcao;
-      if (indice === -1 || novoIndice < 0 || novoIndice >= atual.buttons.length) return atual;
-      const buttons = [...atual.buttons];
-      const [removido] = buttons.splice(indice, 1);
-      if (!removido) return atual;
-      buttons.splice(novoIndice, 0, removido);
-      return { ...atual, buttons };
-    });
+  const modelos = getButtonLayouts(content.buttons);
+  const porModelo = {
+    square: content.buttons.filter((b) => modelos.get(b.id) === "square"),
+    row: content.buttons.filter((b) => modelos.get(b.id) === "row"),
+  };
+
+  /** Arrastar (lista ou prévia), setas e "Tornar quadrado/retângulo". */
+  function moverParaModelo(id: string, { layout, beforeId }: DropTarget) {
+    const resultado = moveButtonToLayout(content.buttons, id, layout, beforeId);
+    if (!resultado.ok) {
+      setMensagem({ ok: false, mensagem: resultado.mensagem });
+      return;
+    }
+    setContent({ ...content, buttons: resultado.buttons });
   }
+
+  function moverNaArea(id: string, direcao: -1 | 1) {
+    const layout = modelos.get(id) ?? "row";
+    const area = porModelo[layout];
+    const indice = area.findIndex((b) => b.id === id);
+    if (indice === -1 || indice + direcao < 0 || indice + direcao >= area.length) return;
+    const antesDe = direcao === -1 ? area[indice - 1] : area[indice + 2];
+    moverParaModelo(id, { layout, beforeId: antesDe?.id ?? null });
+  }
+
+  const listaRef = useButtonDrag(moverParaModelo);
 
   function salvarBotaoDoFormulario(botao: CardButton) {
     if (formularioBotao?.criando && content.buttons.length >= MAX_BOTOES) {
@@ -256,6 +273,12 @@ export function CardEditor({
               valor={getProfessionColor(content)}
               aoMudar={(cor) => atualizarCampo({ professionColor: cor })}
             />
+            <CampoCor
+              id="accentColor"
+              label="Cor de destaque (Salvar Contato e ícones)"
+              valor={getAccentColor(content)}
+              aoMudar={(cor) => atualizarCampo({ accentColor: cor })}
+            />
           </div>
         </section>
 
@@ -325,18 +348,40 @@ export function CardEditor({
           ) : null}
 
           {content.buttons.length > 0 ? (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Segure um botão — aqui ou na pré-visualização — e arraste para mudar a ordem.
+              Solte em “Quadrados” para ele aparecer no topo, ou em “Retângulos” para a lista.
+            </p>
+          ) : null}
+
+          {content.buttons.length > 0 ? (
+            <div ref={listaRef} className={`${styles.arrangeable} flex flex-col gap-3`}>
+            {(["square", "row"] as const).map((layout) => (
+            <div key={layout} data-button-zone={layout} className={styles.buttonZone}>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {layout === "square" ? "Quadrados · topo do cartão" : "Retângulos · lista"}
+              </h3>
+              {porModelo[layout].length === 0 ? (
+                <p className={styles.emptyZone}>
+                  {layout === "square"
+                    ? "Arraste para cá um link com logo para virar quadrado."
+                    : "Arraste para cá para virar retângulo."}
+                </p>
+              ) : null}
             <ul className="flex flex-col gap-2">
-              {content.buttons.map((botao, indice) => (
+              {porModelo[layout].map((botao, indice, area) => (
                 <li
                   key={botao.id}
+                  data-button-id={botao.id}
                   className={styles.buttonRow}
                 >
                   <div className="flex min-w-0 items-center gap-2">
+                    <IconGrip className="size-4 shrink-0 text-muted-foreground" />
                     <div className="flex shrink-0">
                       <button
                         type="button"
                         disabled={indice === 0}
-                        onClick={() => moverBotao(botao.id, -1)}
+                        onClick={() => moverNaArea(botao.id, -1)}
                         className="ui-btn ui-btn-ghost ui-btn-icon"
                         aria-label="Mover para cima"
                         title="Mover para cima"
@@ -345,8 +390,8 @@ export function CardEditor({
                       </button>
                       <button
                         type="button"
-                        disabled={indice === content.buttons.length - 1}
-                        onClick={() => moverBotao(botao.id, 1)}
+                        disabled={indice === area.length - 1}
+                        onClick={() => moverNaArea(botao.id, 1)}
                         className="ui-btn ui-btn-ghost ui-btn-icon"
                         aria-label="Mover para baixo"
                         title="Mover para baixo"
@@ -369,6 +414,13 @@ export function CardEditor({
                     </span>
                   </div>
                   <div className={styles.buttonControls}>
+                    <button
+                      type="button"
+                      onClick={() => moverParaModelo(botao.id, { layout: layout === "square" ? "row" : "square", beforeId: null })}
+                      className="ui-btn ui-btn-outline ui-btn-sm px-2.5"
+                    >
+                      {layout === "square" ? "Tornar retângulo" : "Tornar quadrado"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => setContent((c) => alternarAtivo(c, botao.id))}
@@ -410,6 +462,9 @@ export function CardEditor({
                 </li>
               ))}
             </ul>
+            </div>
+            ))}
+            </div>
           ) : null}
 
           {formularioBotao ? (
@@ -471,7 +526,7 @@ export function CardEditor({
         <p id="titulo-previa" className={styles.previewTitle}>
           Pré-visualização
         </p>
-        <PreviewPanel content={content} />
+        <PreviewPanel content={content} onMoveButton={moverParaModelo} />
       </aside>
     </div>
   );

@@ -11,7 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { CardProfession } from "../src/components/card-profession";
 import { validarConteudoCartao } from "../src/lib/card/validation";
 import { duplicarConteudoSemDadosPessoais } from "../src/lib/card/templates";
-import { organizeCardButtons } from "../src/lib/card/presentation";
+import { checkSquareEligibility, getAccentColor, getButtonLayouts, isSystemIconKey, moveButtonToLayout, organizeCardButtons, resolveButtonIcon } from "../src/lib/card/presentation";
 import { buildVCard, getContactCardData, getVCardFileName } from "../src/lib/card/vcard";
 
 test("cria e duplica botões mesmo sem randomUUID (HTTP na rede local)", () => {
@@ -139,4 +139,76 @@ test("vCard usa somente dados de botões visíveis e escapa o conteúdo", () => 
   assert.match(vcard, /URL:https:\/\/example\.com/);
   assert.ok(!vcard.includes("0000"));
   assert.equal(getVCardFileName(contact.name), "renan-dias.vcf");
+});
+
+test("cor de destaque é opcional, validada e copiada em modelos; nada fora de hex chega ao estilo", () => {
+  const dark: CardContent = { buttons: [], backgroundColor: "#0c0c0d", buttonColor: "#1a1a1a" };
+  assert.equal(getAccentColor(dark), "#ffbf52");
+  assert.equal(getAccentColor({ buttons: [], backgroundColor: "#ffffff", buttonColor: "#2455ad" }), "#2455ad");
+  assert.equal(getAccentColor({ ...dark, accentColor: "#fab754" }), "#fab754");
+  for (const invalid of ["red", "url(https://example.com/x.png)", "#fab754; color: red"]) {
+    assert.equal(getAccentColor({ ...dark, accentColor: invalid }), "#ffbf52");
+    assert.equal(validarConteudoCartao({ ...dark, accentColor: invalid }, false).valido, false);
+  }
+  assert.equal(getAccentColor({ ...dark, accentColor: "#fab754", professionColor: "#3154ae" }), "#fab754");
+  assert.equal(duplicarConteudoSemDadosPessoais({ ...dark, accentColor: "#fab754" }).accentColor, "#fab754");
+});
+
+test("ícone escolhido pelo cliente substitui o automático; chave desconhecida volta ao automático", () => {
+  const site = { id: "s", type: "link", enabled: true, title: "Site", url: "https://example.com" } as const;
+  assert.equal(resolveButtonIcon(site), "link");
+  assert.equal(resolveButtonIcon({ ...site, title: "Meus serviços" }), "monitor");
+  assert.equal(resolveButtonIcon({ ...site, icon: "map-pin" }), "map-pin");
+  assert.equal(resolveButtonIcon({ ...site, title: "Meus serviços", icon: "phone" }), "phone");
+  assert.equal(isSystemIconKey("toString"), false);
+  assert.equal(resolveButtonIcon({ ...site, icon: "toString" }), "link");
+  assert.equal(resolveButtonIcon({ ...site, icon: "https://example.com/icon.webp" }), "link");
+});
+
+test("modelo quadrado: só link de um toque com logo; o motivo é explicado ao cliente", () => {
+  const site = { id: "site", type: "link", enabled: true, title: "Site", url: "https://example.com" } as const;
+  const wifi = { id: "wifi", type: "wifi", enabled: true, ssid: "Rede", password: "senha" } as const;
+  const semLogo = checkSquareEligibility(site);
+  assert.equal(semLogo.ok, false);
+  assert.match(semLogo.ok ? "" : semLogo.mensagem, /precisa de um logo/);
+  const detalhes = checkSquareEligibility(wifi);
+  assert.match(detalhes.ok ? "" : detalhes.mensagem, /Wi-Fi abre detalhes/);
+  assert.equal(checkSquareEligibility({ ...site, icon: "monitor" }).ok, true);
+  assert.equal(checkSquareEligibility({ ...site, icon: "https://example.com/icon.webp" }).ok, true);
+  assert.equal(checkSquareEligibility({ ...site, url: "https://wa.me/5511999999999" }).ok, true);
+  assert.equal(validarBotoes([{ ...site, layout: "square" }]).valido, false);
+  assert.equal(validarBotoes([{ ...wifi, layout: "square" }]).valido, false);
+  assert.equal(validarBotoes([{ ...site, icon: "monitor", layout: "square" }]).valido, true);
+  assert.equal(validarBotoes([{ ...site, layout: "grade" as never }]).valido, false);
+});
+
+test("modelo do botão: cartões antigos não mudam; escolha explícita vale; inválida cai para lista", () => {
+  const rede = (id: string, url: string) => ({ id, type: "link", enabled: true, title: id, url }) as const;
+  const antigos = [rede("wa", "https://wa.me/1"), rede("ig", "https://instagram.com/a"), rede("li", "https://linkedin.com/in/a"),
+    rede("ig2", "https://instagram.com/b"), rede("ig3", "https://instagram.com/c")];
+  assert.deepEqual(organizeCardButtons(antigos).featured.map(({ button }) => button.id), ["wa", "ig", "li", "ig2"]);
+  const escolhidos: CardContent["buttons"] = [{ ...antigos[0]!, layout: "row" as const }, { ...rede("site", "https://example.com"), icon: "monitor", layout: "square" as const },
+    { id: "pix", type: "pix", enabled: true, key: "chave", layout: "square" as const }];
+  const organizado = organizeCardButtons(escolhidos);
+  assert.deepEqual(organizado.featured.map(({ button }) => button.id), ["site"]);
+  assert.deepEqual(organizado.regular.map(({ id }) => id), ["wa", "pix"]);
+});
+
+test("arrastar entre áreas: insere na posição, fixa o modelo de todos e recusa o que não pode ser quadrado", () => {
+  const buttons: CardContent["buttons"] = [
+    { id: "wa", type: "link", enabled: true, title: "WhatsApp", url: "https://wa.me/1" },
+    { id: "ig", type: "link", enabled: true, title: "Instagram", url: "https://instagram.com/a" },
+    { id: "services", type: "link", enabled: true, title: "Meus serviços", url: "https://example.com", icon: "monitor" },
+    { id: "local", type: "address", enabled: true, title: "Minha localização", address: "Rua A" },
+  ];
+  const paraQuadrado = moveButtonToLayout(buttons, "services", "square", "ig");
+  assert.ok(paraQuadrado.ok);
+  assert.deepEqual(paraQuadrado.buttons.map(({ id, layout }) => `${id}:${layout}`), ["wa:square", "services:square", "ig:square", "local:row"]);
+  const paraLista = moveButtonToLayout(paraQuadrado.buttons, "wa", "row", null);
+  assert.ok(paraLista.ok);
+  assert.deepEqual(paraLista.buttons.map(({ id, layout }) => `${id}:${layout}`), ["services:square", "ig:square", "local:row", "wa:row"]);
+  const recusado = moveButtonToLayout(buttons, "local", "square", null);
+  assert.equal(recusado.ok, false);
+  assert.match(recusado.ok ? "" : recusado.mensagem, /endereço abre detalhes/);
+  assert.deepEqual(getButtonLayouts(buttons).get("local"), "row");
 });

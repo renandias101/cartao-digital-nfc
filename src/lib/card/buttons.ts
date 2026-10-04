@@ -1,6 +1,7 @@
 import { LIMITES_TEXTO, MAX_BOTOES, ESQUEMAS_URL_ACEITOS } from "@/lib/constants";
 import type { CardButton, CardContent } from "@/lib/card/types";
 import { createButtonId } from "@/lib/card/button-id";
+import { checkSquareEligibility } from "@/lib/card/presentation";
 
 /**
  * Espelha `public.validate_button` no banco. O banco continua sendo a
@@ -17,7 +18,20 @@ export function validarBotao(btn: CardButton): { valido: true } | { valido: fals
   if ("description" in btn && btn.description !== undefined && btn.description.length > LIMITES_TEXTO.descricaoBotao) {
     return { valido: false, mensagem: `Descrição: máximo de ${LIMITES_TEXTO.descricaoBotao} caracteres.` };
   }
+  if (btn.layout !== undefined && btn.layout !== "square" && btn.layout !== "row") {
+    return { valido: false, mensagem: "Modelo de botão inválido." };
+  }
 
+  const porTipo = validarCamposDoTipo(btn);
+  if (!porTipo.valido) return porTipo;
+  if (btn.layout === "square") {
+    const quadrado = checkSquareEligibility(btn);
+    if (!quadrado.ok) return { valido: false, mensagem: quadrado.mensagem };
+  }
+  return { valido: true };
+}
+
+function validarCamposDoTipo(btn: CardButton): { valido: true } | { valido: false; mensagem: string } {
   switch (btn.type) {
     case "link": {
       if (!btn.title) return { valido: false, mensagem: "Informe o título do link." };

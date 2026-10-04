@@ -20,7 +20,7 @@ export function SaveContactButton({ contact }: { contact: ContactCardData }) {
   return (
     <button type="button" onClick={downloadContact} className={styles.saveContact}>
       <IconContact className={styles.saveContactIcon} />
-      <span>Salvar contato</span>
+      <span>Salvar Contato</span>
     </button>
   );
 }

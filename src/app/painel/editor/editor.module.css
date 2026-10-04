@@ -19,7 +19,10 @@
   flex-shrink: 0;
 }
 
-.topbar a { min-height: 44px; }
+.topbar a, .topbar button { min-height: 44px; }
+
+/* Faixas da página única (avisos, link/situação, senha) alinhadas ao editor. */
+.band { width: 100%; max-width: 1536px; margin-inline: auto; }
 
 .workspace {
   width: 100%;
@@ -36,7 +39,7 @@
   box-shadow: 0 1px 3px #18202c08;
 }
 
-.heading h1 { font-size: clamp(24px, 2vw, 30px); font-weight: 700; letter-spacing: -.6px; line-height: 1.2; }
+.heading :is(h1, h2) { font-size: clamp(24px, 2vw, 30px); font-weight: 700; letter-spacing: -.6px; line-height: 1.2; }
 .heading p { margin-top: 4px; color: #626d80; font-size: 14px; line-height: 1.5; }
 
 .editorGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; min-height: 0; }
@@ -63,7 +66,8 @@
 
 .actionButtons { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .actionButtons button { min-height: 44px; }
-.previewColumn { min-width: 0; padding: 16px; border-radius: 12px; background: #f5f6f8; }
+/* Margem curta no celular: a prévia fica com a largura real do cartão. */
+.previewColumn { min-width: 0; padding: 12px 4px 4px; border-radius: 12px; background: #f5f6f8; }
 .previewTitle { margin-bottom: 16px; text-align: center; font-size: 14px; font-weight: 500; color: #626d80; }
 .previewViewport { width: 100%; max-width: 420px; margin-inline: auto; max-height: 70dvh; overflow-y: auto; }
 
@@ -83,18 +87,35 @@
 }
 
 @media (min-width: 900px) {
-  .page { height: 100dvh; min-height: 600px; }
-  .workspace { flex: 1; gap: 16px; }
-  .heading { flex-shrink: 0; }
-  .editorGrid { flex: 1; grid-template-columns: minmax(0, 1fr) minmax(280px, 32%); gap: 24px; }
-  .fields { flex: 1; overflow-y: auto; scrollbar-gutter: stable; padding: 3px 8px 3px 3px; scroll-padding-block: 12px; }
+  .workspace { gap: 16px; }
+  /* Página única: os campos rolam com a página; a barra de ações fica presa
+     no rodapé e a prévia acompanha a rolagem, sem rolagem dentro de rolagem. */
+  .editorGrid { grid-template-columns: minmax(0, 1fr) minmax(300px, min(444px, 40%)); align-items: start; gap: 24px; }
   .section { padding: 12px 16px; }
-  .actionBar { position: static; margin-top: 8px; padding-bottom: 0; }
-  .previewColumn { align-self: start; position: sticky; top: 0; padding: 16px 12px; max-height: 100%; overflow-y: auto; }
+  .previewColumn { position: sticky; top: 12px; display: flex; flex-direction: column; padding: 16px 12px; max-height: calc(100dvh - 24px); }
+  /* A coluna já limita a altura: a prévia usa todo o espaço e rola sozinha. */
+  .previewViewport { flex: 1 1 auto; min-height: 0; max-height: none; }
 }
 
 @media (min-width: 1280px) {
   .page { padding-inline: 32px; }
   .workspace { padding-inline: 32px; }
   .editorGrid { gap: 32px; }
+}
+
+/* Arrastar botões (lista do editor e pré-visualização). */
+.buttonZone { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed transparent; border-radius: 10px; background: #f8f9fb; transition: border-color 160ms ease-out, background-color 160ms ease-out; }
+.emptyZone { padding: 14px 12px; border: 1px dashed #cfd5df; border-radius: 8px; color: #626d80; font-size: 13px; text-align: center; }
+.arrangeable [data-button-id] { -webkit-touch-callout: none; user-select: none; }
+.arrangeable li[data-button-id] { cursor: grab; }
+.arrangeable[data-arranging] { cursor: grabbing; }
+.arrangeable[data-arranging] [data-button-zone] { border-color: #c79a4b; background: #fbf6ec; }
+.arrangeable [data-drag-active] { opacity: 0.55; outline: 2px dashed #b07a2a; outline-offset: 2px; }
+
+/* Na prévia, a área vazia só aparece enquanto arrasta, como destino. */
+.arrangeable[data-arranging] [data-empty-zone] { display: block; min-height: 64px; margin-inline: 16px; border: 2px dashed #c79a4b; border-radius: 14px; background: #c79a4b1a; }
+.arrangeable[data-arranging] [data-digital-card] [data-button-zone] { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .buttonZone { transition: none; }
 }

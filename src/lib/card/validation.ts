@@ -29,6 +29,10 @@ export function validarConteudoCartao(
       (typeof content.professionColor !== "string" || !REGEX_COR_HEX.test(content.professionColor))) {
     return { valido: false, mensagem: "Cor de Nicho / profissão inválida. Use uma cor hexadecimal." };
   }
+  if (content.accentColor !== undefined &&
+      (typeof content.accentColor !== "string" || !REGEX_COR_HEX.test(content.accentColor))) {
+    return { valido: false, mensagem: "Cor de destaque inválida. Use uma cor hexadecimal." };
+  }
 
   if (requireComplete && !displayName) {
     return { valido: false, mensagem: "Informe o nome exibido no cartão." };

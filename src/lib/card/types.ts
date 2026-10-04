@@ -7,6 +7,8 @@ type BaseButton = {
   enabled: boolean;
   /** Ícone do sistema (chave) ou URL de upload (etapa 10). Opcional em todos os tipos (PRD §12). */
   icon?: string;
+  /** Quadrado (grade no topo) ou retângulo (lista). Ausente: regra automática. */
+  layout?: "square" | "row";
 };
 
 /** PRD §13.1. Único tipo com URL — restrita a http(s) (§46). */
@@ -77,6 +79,8 @@ export type CardContent = {
   displayName?: string;
   profession?: string;
   professionColor?: string;
+  /** Cor do botão "Salvar Contato", da borda da foto e dos ícones. Opcional: sem ela, deriva das demais cores. */
+  accentColor?: string;
   description?: string;
   backgroundColor?: string;
   buttonColor?: string;

@@ -7,6 +7,7 @@ import { LIMITES_TEXTO } from "@/lib/constants";
 import type { CardButton, ButtonType } from "@/lib/card/types";
 import { TIPOS_DE_BOTAO } from "@/lib/card/types";
 import { validarBotao } from "@/lib/card/buttons";
+import { SYSTEM_ICONS, checkSquareEligibility, isSystemIconKey, isUploadedIcon } from "@/lib/card/presentation";
 
 const NOMES_TIPO: Record<ButtonType, string> = {
   link: "Link personalizado",
@@ -68,6 +69,9 @@ export function ButtonForm({
     formRef.current?.scrollIntoView({ block: "nearest" });
     formRef.current?.querySelector<HTMLElement>("select:not(:disabled), input")?.focus({ preventScroll: true });
   }, []);
+
+  const elegibilidade = checkSquareEligibility(botao);
+  const avisoQuadrado = botao.layout === "square" && !elegibilidade.ok ? elegibilidade.mensagem : null;
 
   function atualizar(campos: Partial<CardButton>) {
     setBotao((atual) => ({ ...atual, ...campos }) as CardButton);
@@ -268,10 +272,54 @@ export function ButtonForm({
         </div>
       )}
 
+      <div className="space-y-1.5">
+        <label htmlFor="modelo-botao" className="ui-label">
+          Modelo
+        </label>
+        <select
+          id="modelo-botao"
+          value={botao.layout ?? ""}
+          onChange={(e) => atualizar({ layout: (e.target.value || undefined) as CardButton["layout"] })}
+          aria-describedby="modelo-botao-ajuda"
+          className="ui-input"
+        >
+          <option value="">Automático (redes sociais no topo)</option>
+          <option value="square">Quadrado (topo, com logo)</option>
+          <option value="row">Retângulo (lista)</option>
+        </select>
+        <p id="modelo-botao-ajuda" aria-live="polite"
+          className={`text-xs ${avisoQuadrado ? "text-destructive" : "text-muted-foreground"}`}>
+          {avisoQuadrado ?? "Quadrado é para links de um toque que tenham logo, como WhatsApp e Instagram."}
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="icone-botao" className="ui-label">
+          Ícone
+        </label>
+        <select
+          id="icone-botao"
+          value={isSystemIconKey(botao.icon) ? botao.icon : ""}
+          onChange={(e) => atualizar({ icon: e.target.value || undefined })}
+          aria-describedby="icone-botao-ajuda"
+          className="ui-input"
+        >
+          <option value="">{isUploadedIcon(botao.icon) ? "Ícone enviado" : "Automático"}</option>
+          {Object.entries(SYSTEM_ICONS).map(([key, nome]) => (
+            <option key={key} value={key}>
+              {nome}
+            </option>
+          ))}
+        </select>
+        <p id="icone-botao-ajuda" className="text-xs text-muted-foreground">
+          Automático escolhe pelo tipo e pelo título. Um ícone enviado abaixo tem prioridade.
+        </p>
+      </div>
+
       <ImageField
         proposito="icon"
         label="Ícone personalizado (opcional)"
-        valor={botao.icon}
+        valor={isUploadedIcon(botao.icon) ? botao.icon : undefined}
         aoMudar={(url) => atualizar({ icon: url })}
         buttonId={botao.id}
       />
