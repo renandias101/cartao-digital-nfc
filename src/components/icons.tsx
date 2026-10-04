@@ -321,3 +321,91 @@ export const IconUndo = ({ className }: IconProps) => (
     <path d="M4.5 10A8 8 0 1 1 6 16.5" />
   </Svg>
 );
+
+/* Marcas e negócios: mesmo traço (1,8) e grade 24×24 dos demais. */
+
+export const IconTelegram = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="M21.5 4 2.8 11.2l5.6 2.1 2.1 6 3.2-3.9 5 3.6L21.5 4Z" />
+    <path d="m8.4 13.3 13-9.3" />
+  </Svg>
+);
+
+export const IconFacebook = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <rect x="3" y="3" width="18" height="18" rx="5" />
+    <path d="M16 8.5h-1.6a1.9 1.9 0 0 0-1.9 1.9V21M9.5 13h6" />
+  </Svg>
+);
+
+export const IconTikTok = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5" />
+    <path d="M14 3c.3 2.6 2.1 4.4 5 4.6" />
+  </Svg>
+);
+
+export const IconYouTube = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <rect x="2.5" y="5.5" width="19" height="13" rx="4" />
+    <path d="M10 9.3v5.4l4.6-2.7L10 9.3Z" fill="currentColor" />
+  </Svg>
+);
+
+export const IconX = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="M4 4h4.5L20 20h-4.5L4 4Z" />
+    <path d="M4.5 20 10.7 13M19.5 4l-6.2 7" />
+  </Svg>
+);
+
+export const IconPinterest = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M10.2 18.5 12 10.5" />
+    <path d="M9 11.2c-.6-2.3 1-4 3.2-3.9 2.2.1 3.4 2 2.8 3.9-.6 1.8-2.2 2.6-3.6 2" />
+  </Svg>
+);
+
+export const IconGlobe = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18" />
+    <path d="M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3Z" />
+  </Svg>
+);
+
+export const IconBriefcase = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <rect x="3" y="7" width="18" height="13" rx="2" />
+    <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 13h18" />
+  </Svg>
+);
+
+export const IconCatalog = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="M12 6.5C10.5 5.3 8.2 4.8 5 5v13c3.2-.2 5.5.3 7 1.5 1.5-1.2 3.8-1.7 7-1.5V5c-3.2-.2-5.5.3-7 1.5Z" />
+    <path d="M12 6.5v13" />
+  </Svg>
+);
+
+export const IconMenu = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="M5 3v6a2 2 0 0 0 4 0V3M7 11v10" />
+    <path d="M17 21V3c-2.2 1.5-3 4-3 6.5V13h3" />
+  </Svg>
+);
+
+export const IconStore = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="M4 9 5.5 4h13L20 9" />
+    <path d="M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0A2.7 2.7 0 0 0 20 9" />
+    <path d="M5 11.5V20h14v-8.5M10 20v-5h4v5" />
+  </Svg>
+);
+
+export const IconStar = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z" />
+  </Svg>
+);

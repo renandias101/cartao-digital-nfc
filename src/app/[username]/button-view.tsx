@@ -1,20 +1,8 @@
 import Image from "next/image";
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
-import {
-  IconCard,
-  IconChevronDown,
-  IconInstagram,
-  IconLinkedIn,
-  IconLink,
-  IconLock,
-  IconMail,
-  IconMapPin,
-  IconMonitor,
-  IconNote,
-  IconPhone,
-  IconWhatsApp,
-} from "@/components/icons";
+import { IconChevronDown, IconLink } from "@/components/icons";
+import { SYSTEM_ICON_COMPONENTS } from "@/components/system-icons";
 import {
   isSystemIconKey,
   isUploadedIcon,
@@ -27,20 +15,6 @@ import styles from "@/components/digital-card.module.css";
 
 const labels = { link: "Link", text: "Informações", wifi: "Wi-Fi", pix: "PIX", phone: "Telefone", address: "Endereço" };
 
-const SYSTEM_ICON_COMPONENTS: Record<SystemIconKey, ComponentType<{ className?: string }>> = {
-  monitor: IconMonitor,
-  link: IconLink,
-  "map-pin": IconMapPin,
-  phone: IconPhone,
-  whatsapp: IconWhatsApp,
-  instagram: IconInstagram,
-  linkedin: IconLinkedIn,
-  email: IconMail,
-  note: IconNote,
-  lock: IconLock,
-  card: IconCard,
-};
-
 /** Ícone enviado > ícone escolhido > `fallback` (deduzido pelo tipo e título). */
 export function ButtonIcon({ button, className, fallback = resolveButtonIcon(button) }: {
   button: CardButton;
@@ -50,7 +24,8 @@ export function ButtonIcon({ button, className, fallback = resolveButtonIcon(but
   if (isUploadedIcon(button.icon)) {
     return <Image src={button.icon} alt="" width={32} height={32} className={className} />;
   }
-  const Icon = SYSTEM_ICON_COMPONENTS[isSystemIconKey(button.icon) ? button.icon : fallback];
+  // Chave desconhecida (ex.: salva por uma versão futura) cai no ícone automático, e este no de link.
+  const Icon = SYSTEM_ICON_COMPONENTS[isSystemIconKey(button.icon) ? button.icon : fallback] ?? IconLink;
   return <Icon className={className} />;
 }
 

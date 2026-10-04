@@ -7,7 +7,8 @@ import { LIMITES_TEXTO } from "@/lib/constants";
 import type { CardButton, ButtonType } from "@/lib/card/types";
 import { TIPOS_DE_BOTAO } from "@/lib/card/types";
 import { validarBotao } from "@/lib/card/buttons";
-import { SYSTEM_ICONS, checkSquareEligibility, isSystemIconKey, isUploadedIcon } from "@/lib/card/presentation";
+import { IconPicker } from "@/app/painel/editor/icon-picker";
+import { checkSquareEligibility, isUploadedIcon } from "@/lib/card/presentation";
 
 const NOMES_TIPO: Record<ButtonType, string> = {
   link: "Link personalizado",
@@ -294,23 +295,15 @@ export function ButtonForm({
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="icone-botao" className="ui-label">
+        <span id="icone-botao-rotulo" className="ui-label">
           Ícone
-        </label>
-        <select
-          id="icone-botao"
-          value={isSystemIconKey(botao.icon) ? botao.icon : ""}
-          onChange={(e) => atualizar({ icon: e.target.value || undefined })}
-          aria-describedby="icone-botao-ajuda"
-          className="ui-input"
-        >
-          <option value="">{isUploadedIcon(botao.icon) ? "Ícone enviado" : "Automático"}</option>
-          {Object.entries(SYSTEM_ICONS).map(([key, nome]) => (
-            <option key={key} value={key}>
-              {nome}
-            </option>
-          ))}
-        </select>
+        </span>
+        <IconPicker
+          value={botao.icon}
+          automaticLabel={isUploadedIcon(botao.icon) ? "Ícone enviado" : "Automático"}
+          labelledBy="icone-botao-rotulo"
+          onChange={(icon) => atualizar({ icon })}
+        />
         <p id="icone-botao-ajuda" className="text-xs text-muted-foreground">
           Automático escolhe pelo tipo e pelo título. Um ícone enviado abaixo tem prioridade.
         </p>

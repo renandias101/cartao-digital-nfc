@@ -1,3 +1,4 @@
+import { isSystemIconKey, type SystemIconKey } from "@/lib/card/icon-catalog";
 import { getContrastingColor } from "@/lib/card/profession";
 import type { CardButton, CardContent, LinkButton } from "@/lib/card/types";
 
@@ -20,29 +21,8 @@ export function getAccentColor(content: CardContent): string {
 
 export type FeaturedLinkKind = "whatsapp" | "instagram" | "linkedin" | "email";
 
-/**
- * Ícones do sistema que o cliente pode escolher para um botão. O valor fica
- * em `button.icon` como chave; uma URL ali continua sendo ícone enviado.
- */
-export const SYSTEM_ICONS = {
-  monitor: "Computador / serviços",
-  link: "Link",
-  "map-pin": "Localização",
-  phone: "Telefone",
-  whatsapp: "WhatsApp",
-  instagram: "Instagram",
-  linkedin: "LinkedIn",
-  email: "E-mail",
-  note: "Texto / informação",
-  lock: "Cadeado / Wi-Fi",
-  card: "Cartão / PIX",
-} as const;
-
-export type SystemIconKey = keyof typeof SYSTEM_ICONS;
-
-export function isSystemIconKey(icon: string | undefined): icon is SystemIconKey {
-  return icon !== undefined && Object.hasOwn(SYSTEM_ICONS, icon);
-}
+// O catálogo de ícones (chaves, nomes, categorias, busca) vive em `icon-catalog.ts`.
+export { isSystemIconKey, type SystemIconKey } from "@/lib/card/icon-catalog";
 
 export function isUploadedIcon(icon: string | undefined): icon is string {
   return !!icon && (icon.startsWith("https://") || icon.startsWith("/"));

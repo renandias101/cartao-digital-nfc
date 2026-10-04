@@ -13,6 +13,8 @@ import { validarConteudoCartao } from "../src/lib/card/validation";
 import { duplicarConteudoSemDadosPessoais } from "../src/lib/card/templates";
 import { checkSquareEligibility, getAccentColor, getButtonLayouts, isSystemIconKey, moveButtonToLayout, organizeCardButtons, resolveButtonIcon } from "../src/lib/card/presentation";
 import { buildVCard, getContactCardData, getVCardFileName } from "../src/lib/card/vcard";
+import { ICON_CATALOG, ICON_CATEGORIES, searchIcons } from "../src/lib/card/icon-catalog";
+import { SYSTEM_ICON_COMPONENTS } from "../src/components/system-icons";
 
 test("cria e duplica botões mesmo sem randomUUID (HTTP na rede local)", () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis.crypto, "randomUUID");
@@ -211,4 +213,43 @@ test("arrastar entre áreas: insere na posição, fixa o modelo de todos e recus
   assert.equal(recusado.ok, false);
   assert.match(recusado.ok ? "" : recusado.mensagem, /endereço abre detalhes/);
   assert.deepEqual(getButtonLayouts(buttons).get("local"), "row");
+});
+
+test("catálogo de ícones: cada ícone existe uma vez, tem desenho e categoria válida", () => {
+  const keys = ICON_CATALOG.map((entry) => entry.key);
+  const labels = ICON_CATALOG.map((entry) => entry.label.toLocaleLowerCase("pt-BR"));
+  assert.equal(new Set(keys).size, keys.length, "chaves repetidas");
+  assert.equal(new Set(labels).size, labels.length, "nomes repetidos");
+  assert.deepEqual([...keys].sort(), Object.keys(SYSTEM_ICON_COMPONENTS).sort());
+  const categories = new Set<string>(ICON_CATEGORIES.map((category) => category.id));
+  for (const entry of ICON_CATALOG) assert.ok(categories.has(entry.category), entry.key);
+  // Chaves já salvas em cartões antigos continuam valendo.
+  for (const antiga of ["monitor", "link", "map-pin", "phone", "whatsapp", "instagram", "linkedin", "email", "note", "lock", "card"]) {
+    assert.ok(keys.includes(antiga as never), `chave antiga removida: ${antiga}`);
+  }
+});
+
+test("busca de ícones: sinônimos e acentos levam à mesma opção, sem repetir resultados", () => {
+  const only = (query: string) => searchIcons(query).map((entry) => entry.key);
+  for (const sinonimo of ["site", "website", "internet", "Página", "www"]) assert.deepEqual(only(sinonimo).slice(0, 1), ["globe"], sinonimo);
+  assert.deepEqual(only("cardapio"), ["menu"]);
+  assert.deepEqual(only("CARDÁPIO"), ["menu"]);
+  assert.deepEqual(only("agendar"), ["calendar"]);
+  assert.deepEqual(only("avaliacoes"), ["star"]);
+  assert.deepEqual(only("pix"), ["card"]);
+  assert.deepEqual(only("twitter"), ["x"]);
+  assert.deepEqual(only("zzzz"), []);
+  assert.equal(searchIcons("").length, ICON_CATALOG.length);
+  for (const query of ["", "site", "link", "a", "e", "rede", "mensagem"]) {
+    const keys = only(query);
+    assert.equal(new Set(keys).size, keys.length, `resultado repetido em "${query}"`);
+  }
+});
+
+test("ícone desconhecido ou chave nova de outra versão não quebra: volta ao automático", () => {
+  const site = { id: "s", type: "link", enabled: true, title: "Site", url: "https://example.com" } as const;
+  assert.equal(isSystemIconKey("globe"), true);
+  assert.equal(isSystemIconKey("icone-inexistente"), false);
+  assert.equal(resolveButtonIcon({ ...site, icon: "icone-inexistente" }), "link");
+  assert.equal(validarBotoes([{ ...site, icon: "globe", layout: "square" }]).valido, true);
 });
