@@ -11,10 +11,19 @@ const ESTILOS: Record<string, string> = {
  * página pública, onde o status não pode aparecer. O texto sempre acompanha
  * a cor: a informação não depende só dela.
  */
-export function StatusBadge({ status, label }: { status: string; label: string }) {
+export function StatusBadge({
+  status,
+  label,
+  className = "px-2.5 py-0.5 text-xs",
+}: {
+  status: string;
+  label: string;
+  /** Tamanho; a cor continua vindo do status. */
+  className?: string;
+}) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+      className={`inline-flex items-center gap-1.5 rounded-full font-medium ${className} ${
         ESTILOS[status] ?? "bg-muted text-zinc-600"
       }`}
     >

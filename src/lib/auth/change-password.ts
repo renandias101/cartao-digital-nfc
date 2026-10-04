@@ -5,6 +5,28 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type ResultadoTrocaSenha = { ok: true } | { ok: false; mensagem: string };
 
+/** Motivos que o Supabase informa ao recusar a nova senha, em linguagem do cliente. */
+function mensagemDoErroDeTroca(codigo: string | undefined, detalhe: string): string {
+  switch (codigo) {
+    case "same_password":
+      return "A nova senha precisa ser diferente da senha atual.";
+    case "weak_password":
+      return "Essa senha é considerada fraca ou já apareceu em vazamentos. Escolha outra, com letras, números e símbolos.";
+    case "over_request_rate_limit":
+    case "over_email_send_rate_limit":
+      return "Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.";
+    case "reauthentication_needed":
+    case "session_expired":
+    case "session_not_found":
+      return "Sessão expirada. Faça login novamente.";
+    default: {
+      // Descrição do próprio Supabase (não contém a senha), para o cliente poder informar o motivo.
+      const motivo = [detalhe, codigo ? `código: ${codigo}` : ""].filter(Boolean).join(" — ");
+      return `Não foi possível trocar a senha${motivo ? `: ${motivo}` : ""}. Tente novamente.`;
+    }
+  }
+}
+
 /**
  * Cliente troca a própria senha, já logado (PRD §4).
  *
@@ -39,7 +61,9 @@ export async function trocarSenha(
 
   const { error: erroTroca } = await supabase.auth.updateUser({ password: senhaNova });
   if (erroTroca) {
-    return { ok: false, mensagem: "Não foi possível trocar a senha. Tente novamente." };
+    // Só o código e o status — nunca a senha. Sem isso a causa real some.
+    console.error("[trocarSenha] updateUser falhou:", erroTroca.code ?? erroTroca.name, erroTroca.status);
+    return { ok: false, mensagem: mensagemDoErroDeTroca(erroTroca.code, erroTroca.message) };
   }
 
   return { ok: true };

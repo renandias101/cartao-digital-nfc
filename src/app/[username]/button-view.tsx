@@ -42,7 +42,7 @@ const SYSTEM_ICON_COMPONENTS: Record<SystemIconKey, ComponentType<{ className?: 
 };
 
 /** Ícone enviado > ícone escolhido > `fallback` (deduzido pelo tipo e título). */
-function ButtonIcon({ button, className, fallback = resolveButtonIcon(button) }: {
+export function ButtonIcon({ button, className, fallback = resolveButtonIcon(button) }: {
   button: CardButton;
   className?: string;
   fallback?: SystemIconKey;

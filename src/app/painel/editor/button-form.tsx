@@ -274,7 +274,7 @@ export function ButtonForm({
 
       <div className="space-y-1.5">
         <label htmlFor="modelo-botao" className="ui-label">
-          Modelo
+          Onde aparece
         </label>
         <select
           id="modelo-botao"
@@ -283,13 +283,13 @@ export function ButtonForm({
           aria-describedby="modelo-botao-ajuda"
           className="ui-input"
         >
-          <option value="">Automático (redes sociais no topo)</option>
-          <option value="square">Quadrado (topo, com logo)</option>
-          <option value="row">Retângulo (lista)</option>
+          <option value="">Automático (redes sociais em “Redes e contatos”)</option>
+          <option value="square">Redes e contatos (ícone no topo)</option>
+          <option value="row">Links principais (lista)</option>
         </select>
         <p id="modelo-botao-ajuda" aria-live="polite"
           className={`text-xs ${avisoQuadrado ? "text-destructive" : "text-muted-foreground"}`}>
-          {avisoQuadrado ?? "Quadrado é para links de um toque que tenham logo, como WhatsApp e Instagram."}
+          {avisoQuadrado ?? "“Redes e contatos” é para links de um toque que tenham logo, como WhatsApp e Instagram."}
         </p>
       </div>
 

@@ -18,5 +18,9 @@ export async function changePasswordAction(
 ): Promise<ChangePasswordState> {
   const senhaAtual = String(formData.get("current_password") ?? "");
   const senhaNova = String(formData.get("new_password") ?? "");
+  const confirmacao = String(formData.get("confirm_password") ?? "");
+  if (senhaNova !== confirmacao) {
+    return { ok: false, mensagem: "A confirmação não confere com a nova senha." };
+  }
   return trocarSenha(senhaAtual, senhaNova);
 }

@@ -1,111 +1,451 @@
+/*
+ * Editor do cartão (área do cliente). Celular: uma coluna — cabeçalho,
+ * perfil, aparência, links, prévia e a barra de ações presa no rodapé.
+ * A partir de 960px: edição à esquerda e prévia fixa à direita.
+ */
+
 .page {
   min-height: 100dvh;
   padding: 12px;
   background: #f5f6f8;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.topbar {
-  width: 100%;
-  max-width: 1536px;
-  margin-inline: auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  flex-shrink: 0;
-}
-
-.topbar a, .topbar button { min-height: 44px; }
-
-/* Faixas da página única (avisos, link/situação, senha) alinhadas ao editor. */
-.band { width: 100%; max-width: 1536px; margin-inline: auto; }
-
+/* Largura comum do cabeçalho, avisos e editor. */
+.band,
 .workspace {
   width: 100%;
-  max-width: 1536px;
+  max-width: 1440px;
   margin-inline: auto;
-  min-height: 0;
   min-width: 0;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 1px 3px #18202c08;
 }
 
-.heading :is(h1, h2) { font-size: clamp(24px, 2vw, 30px); font-weight: 700; letter-spacing: -.6px; line-height: 1.2; }
-.heading p { margin-top: 4px; color: #626d80; font-size: 14px; line-height: 1.5; }
+/* ---------- Cabeçalho ---------- */
 
-.editorGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; min-height: 0; }
-.editColumn { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.fields { display: flex; flex-direction: column; gap: 12px; min-height: 0; container-type: inline-size; }
-.section { display: flex; flex-direction: column; flex-shrink: 0; gap: 12px; min-width: 0; padding: 16px; border: 1px solid #e4e7ee; border-radius: 10px; background: #fff; }
-.colorsGrid, .imageFields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
-.buttonRow { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
-.buttonControls { display: flex; flex-wrap: wrap; gap: 8px; }
+.editorHeader {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(18 19 22 / 0.03);
+}
 
-.actionBar {
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
+.headerTitle { min-width: 0; }
+.headerTitle h1 { font-size: clamp(22px, 2.2vw, 28px); font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; }
+.headerTitle p { margin-top: 4px; color: #626d80; font-size: 14px; line-height: 1.5; }
+
+.headerMeta { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.metaChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.headerLinkRow { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.headerLinkRow > a { min-height: 44px; }
+
+.linkBox {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px 2px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fafafb;
+}
+
+/* ---------- Grade editor + prévia ---------- */
+
+.editorGrid { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* Celular: a coluna "some" para a prévia entrar entre os campos e a barra
+   de ações, e a barra continuar presa no rodapé enquanto a prévia rola. */
+.editColumn { display: contents; }
+.fields { order: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; container-type: inline-size; }
+.previewColumn { order: 2; }
+.actionBar { order: 3; }
+
+/* ---------- Seções ---------- */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(18 19 22 / 0.03);
+}
+
+.sectionHeader { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.sectionIcon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--gold);
+}
+.sectionIcon svg { width: 20px; height: 20px; }
+.sectionHeading { flex: 1 1 200px; min-width: 0; }
+.sectionHeading h2 { font-size: 17px; font-weight: 650; letter-spacing: -0.2px; line-height: 1.3; }
+.sectionHeading p { margin-top: 2px; color: #626d80; font-size: 13px; line-height: 1.45; }
+.sectionAction { margin-left: auto; }
+
+.subsection {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fafafb;
+}
+
+/* Perfil: coluna estreita = miniatura à esquerda, texto e botão à direita;
+   coluna larga = três blocos lado a lado, como na referência. */
+.imageFields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.imageTile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "preview head" "preview actions";
+  align-items: center;
+  gap: 8px 14px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.imageTileHead { grid-area: head; min-width: 0; }
+.imageTileActions { grid-area: actions; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.imageTileError { grid-column: 1 / -1; }
+.imagePreview {
+  grid-area: preview;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 68px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.imagePreviewRound {
+  width: 68px;
+  margin-inline: 10px;
+  border: 3px solid var(--gold);
+  border-radius: 999px;
+}
+.fieldPair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+
+/* Aparência */
+.colorsGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.colorTile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.colorControl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 2.625rem;
+  padding: 4px 6px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+/* ---------- Links ---------- */
+
+.buttonZone {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex-shrink: 0;
-  margin-top: 12px;
-  padding-block: 12px;
-  border-top: 1px solid #e4e7ee;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fafafb;
+  transition: border-color 160ms ease-out, background-color 160ms ease-out;
+}
+.groupHeader { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding-inline: 2px; }
+.groupIcon { display: grid; place-items: center; color: var(--foreground); }
+.groupIcon svg { width: 18px; height: 18px; }
+.dragHint { display: inline-flex; align-items: center; gap: 6px; color: #626d80; font-size: 12px; }
+.dragHint svg { width: 14px; height: 14px; }
+.emptyZone { padding: 14px 12px; border: 1px dashed #cfd5df; border-radius: 8px; color: #626d80; font-size: 13px; text-align: center; }
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 6px 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   background: #fff;
+  font-size: 14px;
 }
+.grip { display: grid; place-items: center; flex-shrink: 0; color: #9aa1ad; }
+.grip svg { width: 16px; height: 16px; }
+.rowIcon { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; color: var(--foreground); }
+.rowIcon svg { width: 20px; height: 20px; }
+/* `relative`: mantém o `sr-only` (absoluto) preso dentro do rótulo truncado —
+   sem isso ele alarga a página no celular. */
+.rowTitle { position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.linkRow[data-disabled] .rowTitle { color: var(--muted-foreground); }
+.linkRow[data-disabled] .rowIcon { opacity: 0.45; }
+.typeChip { display: none; flex-shrink: 0; padding: 2px 8px; border-radius: 999px; background: var(--muted); color: #52525b; font-size: 12px; }
 
-.actionButtons { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
-.actionButtons button { min-height: 44px; }
-/* Margem curta no celular: a prévia fica com a largura real do cartão. */
-.previewColumn { min-width: 0; padding: 12px 4px 4px; border-radius: 12px; background: #f5f6f8; }
-.previewTitle { margin-bottom: 16px; text-align: center; font-size: 14px; font-weight: 500; color: #626d80; }
-.previewViewport { width: 100%; max-width: 420px; margin-inline: auto; max-height: 70dvh; overflow-y: auto; }
+/* Interruptor ativo/oculto: a posição da bolinha e o nome acessível dizem o
+   estado — não só a cor. */
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 24px;
+  margin-inline: 2px;
+  border-radius: 999px;
+  background: #c9ccd3;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+.switch::before { position: absolute; inset: -10px -4px; content: ""; }
+.switch > span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform 150ms;
+}
+.switch[aria-checked="true"] { background: var(--primary); }
+.switch[aria-checked="true"] > span { transform: translateX(16px); }
 
-@container (min-width: 440px) {
+.editButton { position: relative; flex-shrink: 0; padding-inline: 0; min-width: 2.25rem; }
+.editLabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--foreground);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.menuItem svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--muted-foreground); }
+.menuItem:hover:not(:disabled), .menuItem:focus-visible { background: var(--muted); outline: none; }
+.menuItem:disabled { cursor: not-allowed; opacity: 0.45; }
+.menuItemDanger, .menuItemDanger svg { color: var(--destructive); }
+.menuItemDanger:hover:not(:disabled), .menuItemDanger:focus-visible { background: color-mix(in oklab, var(--destructive) 8%, transparent); }
+
+@container (min-width: 420px) {
   .colorsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .imageFields { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .editButton { padding-inline: 0.75rem; }
+  .editLabel { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
 }
 
-@container (min-width: 680px) {
-  .buttonRow { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+@container (min-width: 520px) {
+  .fieldPair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .typeChip { display: inline-block; }
+  .section { padding: 20px; }
 }
+
+@container (min-width: 640px) {
+  .imageFields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .imageTile { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+  .imageTileActions { margin-top: auto; }
+  .imagePreview { width: auto; height: 104px; }
+  .imagePreviewRound { width: 104px; margin-inline: auto; }
+}
+
+@container (min-width: 700px) {
+  .colorsGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* ---------- Barra de ações ---------- */
+
+.actionBar {
+  position: sticky;
+  bottom: 8px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: 0 8px 24px -12px rgb(18 19 22 / 0.18);
+  backdrop-filter: blur(6px);
+}
+.actionStatus { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; min-height: 20px; }
+.saveStatus { display: inline-flex; align-items: center; gap: 8px; color: #626d80; font-size: 12px; }
+.saveDot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 999px; }
+.saveDotPulse { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+.actionButtons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.actionButtons button { min-height: 44px; }
+.publishButton { grid-column: 1 / -1; order: -1; font-size: 15px; font-weight: 600; }
+.discardButton { color: #4b5160; }
+.discardButton:hover:not(:disabled) { color: var(--destructive); }
+
+/* ---------- Pré-visualização ---------- */
+
+.previewColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(18 19 22 / 0.03);
+}
+.previewHeader { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.previewHeader h2 { font-size: 17px; font-weight: 650; }
+
+.deviceToggle { display: none; }
+.deviceToggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  color: #4b5160;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.deviceToggle button svg { width: 16px; height: 16px; }
+.deviceToggle button[aria-pressed="true"] { background: var(--primary); color: var(--primary-foreground); box-shadow: 0 1px 2px rgb(122 79 18 / 0.25); }
+.deviceToggle button[aria-pressed="false"]:hover { background: #fff; color: var(--foreground); }
+
+/* Celular: a prévia já é do tamanho de um celular, sem moldura. */
+.phone { width: 100%; max-width: 420px; margin-inline: auto; }
+.phoneNotch { display: none; }
+.phoneScreen {
+  max-height: 75dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+
+.previewTip { padding: 10px 12px; border-radius: 12px; background: #fafafb; color: #626d80; font-size: 12px; line-height: 1.5; }
+
+.browser { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: #fff; box-shadow: 0 12px 30px -18px rgb(18 19 22 / 0.35); }
+.browserBar { display: flex; align-items: center; gap: 6px; height: 28px; padding-inline: 12px; background: var(--muted); }
+.browserBar span { width: 9px; height: 9px; border-radius: 999px; background: #d4d4d8; }
+.browserViewport { max-height: calc(100dvh - 240px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* ---------- Pontos de quebra ---------- */
 
 @media (min-width: 640px) {
   .page { padding: 16px 24px; }
-  .workspace { padding: 24px; }
-  .actionButtons { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .editorHeader { padding: 20px 24px; }
+  .actionButtons { display: flex; align-items: center; }
+  .publishButton { order: 0; margin-left: auto; min-width: 220px; }
 }
 
-@media (min-width: 900px) {
-  .workspace { gap: 16px; }
-  /* Página única: os campos rolam com a página; a barra de ações fica presa
-     no rodapé e a prévia acompanha a rolagem, sem rolagem dentro de rolagem. */
-  .editorGrid { grid-template-columns: minmax(0, 1fr) minmax(300px, min(444px, 40%)); align-items: start; gap: 24px; }
-  .section { padding: 12px 16px; }
-  .previewColumn { position: sticky; top: 12px; display: flex; flex-direction: column; padding: 16px 12px; max-height: calc(100dvh - 24px); }
-  /* A coluna já limita a altura: a prévia usa todo o espaço e rola sozinha. */
-  .previewViewport { flex: 1 1 auto; min-height: 0; max-height: none; }
+@media (min-width: 960px) {
+  .editorHeader { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+  .headerMeta { flex: 0 1 600px; }
+
+  .editorGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, min(460px, 38%));
+    align-items: start;
+    gap: 20px;
+  }
+  .editColumn { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .previewColumn { position: sticky; top: 16px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+  .actionBar { bottom: 12px; }
+
+  .deviceToggle {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: auto;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--muted);
+  }
+
+  /* Moldura de celular discreta: a tela é o que importa. */
+  .phone {
+    position: relative;
+    max-width: 340px;
+    padding: 10px;
+    border-radius: 46px;
+    background: #141518;
+    box-shadow: 0 24px 48px -28px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  }
+  .phoneNotch {
+    position: absolute;
+    z-index: 2;
+    top: 18px;
+    left: 50%;
+    display: block;
+    width: 84px;
+    height: 22px;
+    border-radius: 999px;
+    background: #141518;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+  .phoneScreen {
+    height: clamp(460px, calc(100dvh - 250px), 700px);
+    max-height: none;
+    border: 0;
+    border-radius: 36px;
+    scrollbar-width: none;
+  }
+  .phoneScreen::-webkit-scrollbar { display: none; }
 }
 
 @media (min-width: 1280px) {
   .page { padding-inline: 32px; }
-  .workspace { padding-inline: 32px; }
-  .editorGrid { gap: 32px; }
+  .editorGrid { gap: 24px; }
 }
 
-/* Arrastar botões (lista do editor e pré-visualização). */
-.buttonZone { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed transparent; border-radius: 10px; background: #f8f9fb; transition: border-color 160ms ease-out, background-color 160ms ease-out; }
-.emptyZone { padding: 14px 12px; border: 1px dashed #cfd5df; border-radius: 8px; color: #626d80; font-size: 13px; text-align: center; }
+/* ---------- Arrastar botões (lista do editor e prévia) ---------- */
+
 .arrangeable [data-button-id] { -webkit-touch-callout: none; user-select: none; }
 .arrangeable li[data-button-id] { cursor: grab; }
 .arrangeable[data-arranging] { cursor: grabbing; }
@@ -117,5 +457,12 @@
 .arrangeable[data-arranging] [data-digital-card] [data-button-zone] { background: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
-  .buttonZone { transition: none; }
+  .buttonZone, .switch, .switch > span { transition: none; }
+  .saveDotPulse { animation: none; }
+}
+
+/* Celular estreito: "Descartar" cabe sem quebrar linha; o nome completo continua para leitores de tela. */
+@media (max-width: 419px) {
+  .discardMore { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .actionBar { padding: 10px; gap: 8px; }
 }

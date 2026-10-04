@@ -218,12 +218,15 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     await until("document.querySelector('[role=alert]')?.textContent.includes('Formato não suportado')");
     assert.equal(await evaluate("window.fixture.uploadCount"), count);
     await click("Excluir");
+    // Excluir pede confirmação antes de tirar o botão do rascunho.
+    await until("document.querySelector('dialog[open] [data-confirm]') !== null");
+    await evaluate("document.querySelector('dialog[open] [data-confirm]').click()");
     await until("document.querySelectorAll('li').length === 1");
     assert.ok(await evaluate("document.documentElement.scrollWidth <= innerWidth"), `Sem overflow horizontal em ${width}px`);
     await click("Salvar rascunho");
     await until("window.fixture.saved?.profession === 'Desenvolvedor Web'");
     // Publicar exige o rascunho confirmado na tela, não só a action chamada.
-    await until("document.querySelector('[role=status]')?.textContent === 'Rascunho salvo.'");
+    await until("document.body.textContent.includes('Alterações salvas automaticamente')");
     await click("Publicar alterações");
     await until("window.fixture.published?.professionColor === '#3154ae'");
     await evaluate("window.fixture.showPublic()");

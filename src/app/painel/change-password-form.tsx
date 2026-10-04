@@ -7,18 +7,24 @@ import { IconLock } from "@/components/icons";
 
 const estadoInicial: ChangePasswordState = { ok: null };
 
-/** Formulário de troca de senha do cliente (PRD §4). */
+/**
+ * Troca de senha do cliente (PRD §4). Continua exigindo a senha atual; a
+ * confirmação evita trancar a conta por erro de digitação.
+ */
 export function ChangePasswordForm() {
   const [state, formAction, pending] = useActionState(changePasswordAction, estadoInicial);
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      <h2 className="ui-card-title">
-        <IconLock />
-        Trocar senha
-      </h2>
+    <form action={formAction} className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <IconLock className="size-4 text-gold" />
+          Redefinição de senha
+        </h3>
+        <p className="text-xs text-muted-foreground">Defina uma nova senha para acessar e editar o seu cartão.</p>
+      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:max-w-2xl">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-1.5">
           <label htmlFor="current_password" className="ui-label">
             Senha atual
@@ -46,6 +52,23 @@ export function ChangePasswordForm() {
             required
             minLength={8}
             maxLength={200}
+            placeholder="Mínimo de 8 caracteres"
+            className="ui-input"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="confirm_password" className="ui-label">
+            Confirmar nova senha
+          </label>
+          <input
+            id="confirm_password"
+            name="confirm_password"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={8}
+            maxLength={200}
             className="ui-input"
           />
         </div>
@@ -62,7 +85,8 @@ export function ChangePasswordForm() {
         </p>
       ) : null}
 
-      <button type="submit" disabled={pending} className="ui-btn ui-btn-outline w-fit">
+      <button type="submit" disabled={pending} className="ui-btn ui-btn-outline ui-btn-sm w-fit">
+        <IconLock />
         {pending ? "Salvando…" : "Salvar nova senha"}
       </button>
     </form>

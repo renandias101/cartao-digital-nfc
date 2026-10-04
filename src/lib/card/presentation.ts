@@ -110,13 +110,13 @@ export function checkSquareEligibility(button: CardButton): { ok: true } | { ok:
   if (button.type !== "link") {
     return {
       ok: false,
-      mensagem: `Só botões de link podem ser quadrados, porque abrem com um único toque. Um botão de ${TYPE_NAMES[button.type]} abre detalhes antes (como senha, chave ou endereço), então fica no formato retângulo.`,
+      mensagem: `Só botões de link podem ficar em “Redes e contatos”, porque abrem com um único toque. Um botão de ${TYPE_NAMES[button.type]} abre detalhes antes (como senha, chave ou endereço), então fica em “Links principais”.`,
     };
   }
   if (!isUploadedIcon(button.icon) && !isSystemIconKey(button.icon) && !getFeaturedLinkKind(button)) {
     return {
       ok: false,
-      mensagem: `Para ser quadrado, ${button.title ? `o botão “${button.title}”` : "este botão"} precisa de um logo. Edite o botão e escolha um ícone no campo “Ícone” ou envie um ícone personalizado.`,
+      mensagem: `Para ficar em “Redes e contatos”, ${button.title ? `o botão “${button.title}”` : "este botão"} precisa de um logo. Edite o botão e escolha um ícone no campo “Ícone” ou envie um ícone personalizado.`,
     };
   }
   return { ok: true };

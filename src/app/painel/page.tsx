@@ -4,19 +4,12 @@ import { logoutAction } from "@/app/painel/actions";
 import { ChangePasswordForm } from "@/app/painel/change-password-form";
 import { CardEditor } from "@/app/painel/editor/card-editor";
 import editorStyles from "@/app/painel/editor/editor.module.css";
-import { CopyButton } from "@/components/copy-button";
-import { IconAlert, IconClock, IconExternal, IconLink, IconLogout } from "@/components/icons";
-import { StatusBadge } from "@/components/status-badge";
+import { EditorHeader } from "@/app/painel/editor-header";
+import { IconAlert, IconClock, IconLogout } from "@/components/icons";
 import { buscarPainelDoCliente } from "@/lib/card/dashboard";
 import { getDraft } from "@/lib/card/draft";
 import { getActor } from "@/lib/auth/session";
 import { publicEnv, urlPublicaDoCartao } from "@/lib/env";
-
-const NOMES_STATUS: Record<string, string> = {
-  active: "Ativo",
-  expired: "Vencido",
-  cancelled: "Cancelado",
-};
 
 function linkWhatsapp(): string {
   const mensagem = encodeURIComponent("Olá, gostaria de renovar meu cartão digital.");
@@ -25,7 +18,7 @@ function linkWhatsapp(): string {
 
 /**
  * Área do cliente em uma única página (PRD §14, §15, §20-§22, §25, §32):
- * link e situação do cartão, editor com prévia e troca de senha.
+ * situação e link do cartão no topo, editor com prévia e troca de senha.
  *
  * O `proxy.ts` já redireciona quem não está logado antes de chegar aqui
  * (conveniência de navegação, D19); esta página confere de novo — é ela a
@@ -60,24 +53,20 @@ export default async function PainelPage() {
 
   return (
     <main className={editorStyles.page}>
-      <header className={editorStyles.topbar}>
-        <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">
-          Olá, {painel.fullName}
-        </h1>
-        <div className="flex flex-wrap gap-2">
-          <a href={`/${painel.username}`} target="_blank" rel="noopener noreferrer"
-            className="ui-btn ui-btn-outline">
-            <IconExternal />
-            Ver meu cartão
-          </a>
+      <EditorHeader
+        status={painel.status}
+        expiresAt={new Date(painel.expiresAt).toLocaleDateString("pt-BR")}
+        publicUrl={url}
+        publicPath={`/${painel.username}`}
+        accountAction={
           <form action={logoutAction}>
-            <button type="submit" className="ui-btn ui-btn-outline">
+            <button type="submit" className="ui-btn ui-btn-danger ui-btn-sm">
               <IconLogout />
               Sair
             </button>
           </form>
-        </div>
-      </header>
+        }
+      />
 
       {!ativo ? (
         <section className={`${editorStyles.band} flex flex-col gap-4 rounded-2xl border border-destructive/25 bg-destructive/5 p-5 text-sm sm:flex-row sm:items-center sm:justify-between`}>
@@ -118,71 +107,24 @@ export default async function PainelPage() {
         </section>
       ) : null}
 
-      <div className={`${editorStyles.band} grid gap-3 lg:grid-cols-3`}>
-        <section className="ui-card flex min-w-0 flex-col gap-3 p-5 lg:col-span-2">
-          <h2 className="ui-card-title">
-            <IconLink />
-            Seu cartão
-          </h2>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <p className="min-w-0 flex-1 break-all rounded-lg border border-border bg-muted px-3.5 py-2.5 text-sm font-medium">
-              {url}
-            </p>
-            <CopyButton value={url} label="Copiar link" className="ui-btn ui-btn-outline shrink-0" />
-          </div>
-          {painel.temAlteracoesNaoPublicadas ? (
-            <p className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-gold" />
-              Você tem alterações no rascunho ainda não publicadas.
-            </p>
-          ) : null}
-        </section>
-
-        <section className="ui-card flex min-w-0 flex-col gap-3 p-5">
-          <h2 className="ui-card-title">
-            <IconClock />
-            Situação do cartão
-          </h2>
-          <dl className="flex flex-col gap-3 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <dt className="text-muted-foreground">Status</dt>
-              <dd>
-                <StatusBadge
-                  status={painel.status}
-                  label={NOMES_STATUS[painel.status] ?? painel.status}
-                />
-              </dd>
-            </div>
-            {ativo ? (
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-muted-foreground">Vencimento</dt>
-                <dd className="font-medium">
-                  {new Date(painel.expiresAt).toLocaleDateString("pt-BR")}
-                </dd>
-              </div>
-            ) : null}
-          </dl>
-        </section>
-      </div>
-
-      <section id="editor" className={editorStyles.workspace} aria-labelledby="editor-title">
-        <header className={editorStyles.heading}>
-          <h2 id="editor-title">Editor do cartão</h2>
-          <p>
-            Personalize as informações e veja o resultado em tempo real.
-          </p>
-        </header>
+      <section id="editor" aria-label="Edição do cartão" className={editorStyles.band}>
         {content ? (
-          <CardEditor initialContent={content} isActive={ativo} />
+          <CardEditor
+            initialContent={content}
+            isActive={ativo}
+            hasUnpublishedChanges={painel.temAlteracoesNaoPublicadas}
+            passwordForm={<ChangePasswordForm />}
+          />
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Não foi possível carregar seu cartão. Tente novamente.
-          </p>
+          <div className="flex flex-col gap-4">
+            <p className="ui-card p-5 text-sm text-muted-foreground">
+              Não foi possível carregar seu cartão. Tente novamente.
+            </p>
+            <div className="ui-card p-5 sm:p-6">
+              <ChangePasswordForm />
+            </div>
+          </div>
         )}
-      </section>
-
-      <section className={`${editorStyles.band} ui-card min-w-0 p-5 sm:p-6`}>
-        <ChangePasswordForm />
       </section>
     </main>
   );
