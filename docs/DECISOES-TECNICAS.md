@@ -1235,3 +1235,59 @@ do administrador (alternativas descartadas: só WhatsApp; os dois).
   ficar acima da barra "Publicar alterações". Formulário em `<dialog>`.
 - Painel: `/admin/suporte` ("Suporte" no menu), abas Abertos/Resolvidos,
   link para o cliente, texto exibido como texto puro.
+
+## D73 — Painel administrativo como central de operação dos cartões
+
+**Data:** 04/10/2026 · **Etapa:** ajustes pós-etapa 16
+
+Pedido do usuário (12 etapas). Migrations `20261004150000` a
+`20261004200000`, todas aplicadas no Supabase.
+
+1. **Exclusão só após 3 meses cancelado** — mais restrito que o PRD
+   §34/§66 ("somente cancelados"), por decisão do usuário. Data do
+   cancelamento = `cancelled_at` (manual) ou `expires_at + 15 dias`
+   (automático, a mesma regra de `effective_status`). A trava está na
+   política de delete de `clients` (vale até para DELETE direto) e em
+   `delete_client`. A exclusão agora também apaga a conta de login
+   (`auth.users`), que antes ficava para trás — depois do `delete_client`,
+   nunca antes (a cascata passaria por cima da regra).
+2. **Estado do cartão** (`admin_client_overview`): Atualizado / Alterações
+   não publicadas / Nunca publicado, comparando o **conteúdo** do rascunho
+   com o publicado — divergência consciente do pedido, que sugeria comparar
+   `updated_at` com `published_at`: "Descartar alterações" e o salvamento
+   automático regravam o rascunho sem mudá-lo e a comparação por data
+   acusaria pendência falsa. O painel do cliente passou a usar a mesma regra.
+3. **Publicado × Rascunho** na ficha, com o mesmo `DigitalCard`.
+4. **Edição pelo admin** com o mesmo `CardEditor`: as ações (salvar,
+   publicar, descartar, enviar imagem) viraram injetáveis (`EditorActions`);
+   o padrão continua sendo o cliente. Sem impersonação. Funções
+   `admin_save_draft`/`admin_publish_card`/`admin_restore_draft` conferem
+   `private.is_admin()`; o upload aceita pasta de outro cliente só para
+   admin e só com UUID. O admin publica mesmo com o cliente inativo (a
+   página pública segue neutra). Edição simultânea admin × cliente: vale a
+   última gravação (aviso na tela).
+5. **Auditoria** sem conteúdo do cartão nem dado pessoal nos detalhes:
+   novas ações `card_draft_saved` (no máximo uma por admin/cliente a cada
+   30 min, porque o editor salva sozinho), `card_published`,
+   `card_draft_discarded`, `contacts_updated`, `payment_recorded`.
+6. **Saúde do cartão** — regras em `lib/admin/card-health.ts`.
+7. **Contato administrativo** (`client_admin_contacts`): WhatsApp e e-mail,
+   opcionais, só admin; finalidade: falar com o cliente sobre renovação e
+   suporte. Fora de `clients` porque o cliente lê a própria linha de lá.
+8. **Precisam de atenção** na home (`admin_attention_counts`, uma consulta).
+9. **Filtros** principais + "Mais filtros"; busca também por WhatsApp e
+   e-mail internos. Filtros de estado do cartão ignoram clientes
+   cancelados. `%` e `_` digitados são texto.
+10. **Pagamentos** (`client_payments`): registro opcional e imutável ao
+    renovar, na mesma transação (`renew_client_with_payment`).
+11. **Suporte**: classificação (Erro/Dúvida/Alteração/Financeiro),
+    prioridade (Normal/Alta) e anotação interna, só pelo admin; atalhos
+    para cliente, cartão e editor.
+12. **Analytics**: não implementado. Nada criado impede métricas agregadas
+    futuras (tabela própria por evento/dia, sem dado do visitante).
+
+Operação: a ferramenta de migrations do Supabase recusa `DROP POLICY`,
+`DROP TRIGGER` e `DROP FUNCTION`; as migrations usam `ALTER POLICY` e não
+removem `list_clients_for_admin` (sem uso, pendente de remoção manual).
+Pagamentos são apagados junto com o cliente (cascade): se houver obrigação
+fiscal de guardar esses registros, a regra precisa de validação.

@@ -125,6 +125,13 @@ export const IconTrash = ({ className }: IconProps) => (
   </Svg>
 );
 
+export const IconHealth = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="m8.5 12.5 2.5 2.5 4.5-5" />
+  </Svg>
+);
+
 export const IconHelp = ({ className }: IconProps) => (
   <Svg className={className}>
     <path d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.5-4A8 8 0 1 1 20 11.5Z" />

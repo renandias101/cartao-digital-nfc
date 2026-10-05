@@ -6,7 +6,7 @@ import { join } from "node:path";
 import config from "../next.config";
 import { adicionarBotao, alternarAtivo, duplicarBotao, editarBotao, removerBotao, reordenarBotoes, validarBotoes } from "../src/lib/card/buttons";
 import { imageUploadPath, isImagePurpose, validateImageFile } from "../src/lib/card/image-upload";
-import { TIPOS_DE_BOTAO, TIPOS_PARA_CRIAR, type CardContent } from "../src/lib/card/types";
+import { TIPOS_DE_BOTAO, TIPOS_PARA_CRIAR, type CardButton, type CardContent } from "../src/lib/card/types";
 import { UPLOAD_IMAGEM } from "../src/lib/constants";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -19,6 +19,12 @@ import { ICON_CATALOG, ICON_CATEGORIES, searchIcons } from "../src/lib/card/icon
 import { SYSTEM_ICON_COMPONENTS } from "../src/components/system-icons";
 import { RODAPE_PADRAO, validarRodape } from "../src/lib/system/card-footer";
 import { validarSuporte } from "../src/lib/support/support";
+import { avaliarSaudeDoCartao } from "../src/lib/admin/card-health";
+import { emailValido, formatarWhatsapp, normalizarWhatsapp } from "../src/lib/admin/contacts";
+import { lerFiltro } from "../src/lib/admin/filters";
+import { lerPagamento, lerValorEmCentavos } from "../src/lib/admin/payments";
+import { categoriaEfetiva } from "../src/lib/support/categories";
+import { diasAte, formatarCentavos } from "../src/lib/format";
 
 test("cria e duplica botões mesmo sem randomUUID (HTTP na rede local)", () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis.crypto, "randomUUID");
@@ -349,4 +355,62 @@ test("ícone desconhecido ou chave nova de outra versão não quebra: volta ao a
   assert.equal(isSystemIconKey("icone-inexistente"), false);
   assert.equal(resolveButtonIcon({ ...site, icon: "icone-inexistente" }), "link");
   assert.equal(validarBotoes([{ ...site, icon: "globe", layout: "square" }]).valido, true);
+});
+
+test("saúde do cartão: classificação com critérios explícitos", () => {
+  const site: CardButton = { id: "s", type: "link", enabled: true, title: "Site", url: "https://a.com" };
+  const completo: CardContent = { displayName: "Renan", profilePhoto: "/f.webp", contactPhone: "(96) 99999-9999", buttons: [site] };
+  const base = { status: "active" as const, diasParaVencer: 60, estadoCartao: "up_to_date" as const, publicado: completo, rascunho: completo };
+  assert.equal(avaliarSaudeDoCartao(base).nivel, "saudavel");
+  assert.equal(avaliarSaudeDoCartao({ ...base, estadoCartao: "pending_changes" }).nivel, "atencao");
+  assert.equal(avaliarSaudeDoCartao({ ...base, diasParaVencer: 15 }).nivel, "atencao");
+  assert.equal(avaliarSaudeDoCartao({ ...base, status: "expired" }).nivel, "atencao");
+  assert.equal(avaliarSaudeDoCartao({ ...base, publicado: { ...completo, contactPhone: undefined } }).nivel, "atencao");
+  assert.equal(avaliarSaudeDoCartao({ ...base, publicado: { ...completo, buttons: [{ ...site, enabled: false }] } }).nivel, "atencao");
+  assert.equal(avaliarSaudeDoCartao({ ...base, estadoCartao: "never_published", publicado: null }).nivel, "incompleto");
+  assert.equal(avaliarSaudeDoCartao({ ...base, publicado: { ...completo, displayName: " " } }).nivel, "incompleto");
+  // Sem publicação, os itens olham o rascunho (o que falta antes de publicar).
+  const nunca = avaliarSaudeDoCartao({ ...base, estadoCartao: "never_published", publicado: null });
+  assert.ok(nunca.itens.some((i) => i.chave === "nome" && i.situacao === "ok"));
+});
+
+test("painel admin: filtros, contato, pagamento e suporte — regras iguais às do banco", () => {
+  assert.equal(lerFiltro("alteracoes_nao_publicadas"), "alteracoes_nao_publicadas");
+  assert.equal(lerFiltro("'; drop table x"), "todos");
+  assert.equal(lerFiltro(undefined), "todos");
+
+  assert.equal(normalizarWhatsapp("(96) 98123-3398"), "5596981233398");
+  assert.equal(normalizarWhatsapp("+55 96 98123-3398"), "5596981233398");
+  assert.equal(normalizarWhatsapp(""), null);
+  assert.equal(normalizarWhatsapp("123"), "invalido");
+  assert.equal(formatarWhatsapp("5596981233398"), "+55 (96) 98123-3398");
+  assert.equal(emailValido("cliente@exemplo.com"), true);
+  assert.equal(emailValido("sem arroba"), false);
+
+  assert.equal(lerValorEmCentavos("120,00"), 12000);
+  assert.equal(lerValorEmCentavos("R$ 1.200,5"), 120050);
+  assert.equal(lerValorEmCentavos("99"), 9900);
+  assert.equal(lerValorEmCentavos(""), null);
+  assert.equal(lerValorEmCentavos("12,345"), "invalido");
+  assert.equal(lerValorEmCentavos("abc"), "invalido");
+  const form = (campos: Record<string, string>) => {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(campos)) f.set(k, v);
+    return f;
+  };
+  const semPagamento = lerPagamento(form({ amount: "", method: "", paid_on: "2026-10-04", payment_note: "" }));
+  assert.ok(semPagamento.ok && !semPagamento.valor.registrar && semPagamento.valor.paidOn === null);
+  const comPagamento = lerPagamento(form({ amount: "120,00", method: "pix", paid_on: "2026-10-04", payment_note: " " }));
+  assert.ok(comPagamento.ok && comPagamento.valor.registrar && comPagamento.valor.amountCents === 12000 && comPagamento.valor.note === null);
+  assert.equal(lerPagamento(form({ method: "boleto" })).ok, false);
+  assert.equal(lerPagamento(form({ amount: "-5" })).ok, false);
+  assert.equal(formatarCentavos(12000).replace(/\s/g, " "), "R$ 120,00");
+
+  assert.equal(categoriaEfetiva(null, "error"), "erro");
+  assert.equal(categoriaEfetiva(null, "help"), "duvida");
+  assert.equal(categoriaEfetiva("financeiro", "help"), "financeiro");
+
+  const agora = new Date("2026-10-04T12:00:00Z");
+  assert.equal(diasAte("2026-10-14T12:00:00Z", agora), 10);
+  assert.ok(diasAte("2026-10-01T12:00:00Z", agora) < 0);
 });

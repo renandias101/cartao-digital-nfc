@@ -130,6 +130,12 @@ async function principal() {
     "20261004120000_card_contact_phone.sql",
     "20261004130000_card_footer.sql",
     "20261004140000_support_requests.sql",
+    "20261004150000_exclusao_apos_3_meses.sql",
+    "20261004160000_dados_administrativos_do_cliente.sql",
+    "20261004170000_edicao_administrativa_do_cartao.sql",
+    "20261004180000_registro_de_pagamentos.sql",
+    "20261004190000_suporte_classificacao.sql",
+    "20261004200000_visao_operacional_admin.sql",
   ];
   for (const m of migracoes) {
     await db.exec(readFileSync(join(AQUI, "..", "migrations", m), "utf8"));
@@ -1106,7 +1112,7 @@ async function principal() {
   verificar("cliente comum não consegue se autocancelar", !clienteNaoCancela.ok);
 
   // =========================================================================
-  secao("17. delete_client (PRD §33, §34, critério de aceite §66)");
+  secao("17. delete_client (PRD §33, §34, §66 + carência de 3 meses cancelado)");
   // =========================================================================
   const EXCLUIR_ATIVO = "10000000-0000-4000-8000-000000000004";
   await db.exec(`
@@ -1141,7 +1147,38 @@ async function principal() {
     deleteCruNegado.ok ? JSON.stringify(deleteCruNegado.resultado.rows) : deleteCruNegado.erro,
   );
 
+  // Carência de 3 meses depois do cancelamento (decisão de 04/10/2026).
+  const tentarExcluir = (id) => comoPapel(db, "authenticated", ADMIN, `select public.delete_client('${id}')`);
   await db.exec(`update public.clients set cancelled_at = now() where id = '${EXCLUIR_ATIVO}'`);
+  verificar("cancelado HOJE: exclusão recusada (carência de 3 meses)", !(await tentarExcluir(EXCLUIR_ATIVO)).ok);
+  await db.exec(`update public.clients set cancelled_at = now() - interval '3 months' + interval '1 day' where id = '${EXCLUIR_ATIVO}'`);
+  verificar("cancelado há 3 meses menos 1 dia: ainda recusada", !(await tentarExcluir(EXCLUIR_ATIVO)).ok);
+  const deleteCruCarencia = await comoPapel(db, "authenticated", ADMIN,
+    `delete from public.clients where id = '${EXCLUIR_ATIVO}' returning id`);
+  verificar("DELETE cru durante a carência também é barrado pela política",
+    !deleteCruCarencia.ok || deleteCruCarencia.resultado.rows.length === 0);
+  await db.exec(`update public.clients set cancelled_at = now() - interval '3 months' where id = '${EXCLUIR_ATIVO}'`);
+  verificar("cancelado há exatamente 3 meses: exclusão permitida", (await tentarExcluir(EXCLUIR_ATIVO)).ok);
+
+  // Vencido (ainda não cancelado) e cancelado automaticamente (vencido + 15 dias).
+  const EXCLUIR_VENCIDO = "10000000-0000-4000-8000-00000000000c";
+  await db.exec(`
+    insert into auth.users (id, email) values ('${EXCLUIR_VENCIDO}', 'ev@interno');
+    insert into public.clients (id, username, full_name, package_months, expires_at) values
+      ('${EXCLUIR_VENCIDO}', 'excluir-vencido', 'Excluir Vencido', 3, now() - interval '5 days');
+  `);
+  verificar("VENCIDO (não cancelado): exclusão recusada", !(await tentarExcluir(EXCLUIR_VENCIDO)).ok);
+  await db.exec(`update public.clients set expires_at = now() - interval '20 days' where id = '${EXCLUIR_VENCIDO}'`);
+  verificar("cancelado automaticamente há 5 dias: exclusão recusada", !(await tentarExcluir(EXCLUIR_VENCIDO)).ok);
+  await db.exec(`update public.clients set expires_at = now() - interval '3 months' - interval '16 days' where id = '${EXCLUIR_VENCIDO}'`);
+  verificar("cancelado automaticamente há mais de 3 meses: exclusão permitida", (await tentarExcluir(EXCLUIR_VENCIDO)).ok);
+  const elegibilidade = await db.query(`select public.client_deletion_eligible_at(expires_at, cancelled_at)::date
+      = (expires_at + interval '15 days' + interval '3 months')::date as ok from public.clients where id = '${EXCLUIR_VENCIDO}'`);
+  verificar("data de elegibilidade = vencimento + 15 dias + 3 meses (cancelamento automático)", elegibilidade.rows[0]?.ok === true);
+  const semData = await db.query(`select public.client_deletion_eligible_at(now() + interval '10 days', null) as d`);
+  verificar("cliente ativo não tem data de elegibilidade", semData.rows[0].d === null);
+  await db.exec(`update public.clients set cancelled_at = now() - interval '4 months' where id = '${EXCLUIR_ATIVO}'`);
+
   // Precisa persistir: a consulta ao histórico logo abaixo é uma chamada
   // separada, e ela só encontra o registro se a exclusão foi confirmada.
   const excluirCanceladoOk = await comoPapelConfirmando(
@@ -1172,7 +1209,7 @@ async function principal() {
   await db.exec(`
     insert into auth.users (id, email) values ('${EXCLUIR_VIA_TRIGGER}', 'evt@interno');
     insert into public.clients (id, username, full_name, package_months, expires_at, cancelled_at) values
-      ('${EXCLUIR_VIA_TRIGGER}', 'excluir-via-trigger', 'Via Trigger', 3, now() - interval '20 days', now());
+      ('${EXCLUIR_VIA_TRIGGER}', 'excluir-via-trigger', 'Via Trigger', 3, now() - interval '5 months', now() - interval '4 months');
   `);
   await comoPapelConfirmando(
     db,
@@ -1274,24 +1311,23 @@ async function principal() {
   verificar("anon não alcança a view", !anonNaView.ok);
 
   // =========================================================================
-  secao("19. list_clients_for_admin (PRD §36, §37, §38)");
+  secao("19. admin_list_clients (PRD §36, §37, §38)");
   // =========================================================================
-  const listar = async (papel, sub, status, maxDias, termo, limite, offset) => {
+  const listar = async (papel, sub, filtro, termo, limite, offset) => {
     const r = await comoPapel(
       db,
       papel,
       sub,
-      `select username, total_count from public.list_clients_for_admin(
-         ${status ? `'${status}'` : "null"},
-         ${maxDias ?? "null"},
-         ${termo ? `'${termo}'` : "null"},
+      `select username, total_count from public.admin_list_clients(
+         ${filtro ? `'${filtro}'` : "null"},
+         ${termo ? `'${termo.replace(/'/g, "''")}'` : "null"},
          ${limite}, ${offset}
        )`,
     );
     return r;
   };
 
-  const todosAtivos = await listar("authenticated", ADMIN, "active", null, null, 50, 0);
+  const todosAtivos = await listar("authenticated", ADMIN, "ativos", null, 50, 0);
   verificar(
     "filtro status='active' traz só ativos, com total_count",
     todosAtivos.ok &&
@@ -1301,7 +1337,7 @@ async function principal() {
     JSON.stringify(todosAtivos.ok ? todosAtivos.resultado.rows : todosAtivos.erro),
   );
 
-  const buscaPorNome = await listar("authenticated", ADMIN, null, null, "Vence Logo", 50, 0);
+  const buscaPorNome = await listar("authenticated", ADMIN, null, "Vence Logo", 50, 0);
   verificar(
     "busca por nome (case-insensitive, parcial) encontra o cliente certo",
     buscaPorNome.ok &&
@@ -1312,15 +1348,7 @@ async function principal() {
 
   // Termo com caractere que teria significado especial num DSL de filtro
   // (vírgula, parênteses) — aqui é só valor, não deve quebrar nem vazar linha.
-  const buscaComCaracteresEspeciais = await listar(
-    "authenticated",
-    ADMIN,
-    null,
-    null,
-    "), or(true",
-    50,
-    0,
-  );
+  const buscaComCaracteresEspeciais = await listar("authenticated", ADMIN, null, "), or(true", 50, 0);
   verificar(
     "termo com vírgula/parênteses não quebra a busca nem retorna tudo",
     buscaComCaracteresEspeciais.ok && buscaComCaracteresEspeciais.resultado.rows.length === 0,
@@ -1331,13 +1359,15 @@ async function principal() {
     ),
   );
 
-  const paginaVazia = await listar("authenticated", ADMIN, null, null, null, 2, 9999);
+  const paginaVazia = await listar("authenticated", ADMIN, null, null, 2, 9999);
+  const curinga = await listar("authenticated", ADMIN, null, "%", 50, 0);
+  verificar("'%' digitado é texto, não curinga (não devolve todos)", curinga.ok && curinga.resultado.rows.length === 0);
   verificar(
     "offset além do total devolve página vazia, sem erro",
     paginaVazia.ok && paginaVazia.resultado.rows.length === 0,
   );
 
-  const clienteNaListagem = await listar("authenticated", VIEW_ATIVO, null, null, null, 50, 0);
+  const clienteNaListagem = await listar("authenticated", VIEW_ATIVO, null, null, 50, 0);
   verificar(
     "cliente comum chamando a listagem só vê a própria linha (RLS herdado)",
     clienteNaListagem.ok &&
@@ -1350,9 +1380,9 @@ async function principal() {
     db,
     "anon",
     null,
-    `select * from public.list_clients_for_admin()`,
+    `select * from public.admin_list_clients()`,
   );
-  verificar("anon não pode chamar list_clients_for_admin", !anonNaListagem.ok);
+  verificar("anon não pode chamar admin_list_clients", !anonNaListagem.ok);
 
   // =========================================================================
   secao("20. validate_card_content — permissivo vs. completo (PRD §8, §9, §56)");
@@ -2490,6 +2520,125 @@ async function principal() {
   verificar("administrador marca como resolvido", adminResolve.ok && adminResolve.resultado.rows.length === 5);
   verificar("resolvido sem data é recusado", !(await comoPapel(db, "authenticated", ADMIN,
     "update public.support_requests set status = 'resolved'")).ok);
+  await db.exec("delete from public.support_requests");
+
+  // =========================================================================
+  secao("Central operacional: estado do cartão, edição administrativa e auditoria");
+  // =========================================================================
+  const OP = "30000000-0000-4000-8000-000000000001";
+  const OUTRO = "10000000-0000-4000-8000-000000000008"; // cliente comum que ainda existe
+  const conteudoOp = (nome) => JSON.stringify({ buttons: [], displayName: nome, backgroundColor: "#000000", buttonColor: "#ffffff" });
+  await db.exec(`
+    insert into auth.users (id, email) values ('${OP}', 'op@interno');
+    insert into public.clients (id, username, full_name, package_months, expires_at) values
+      ('${OP}', 'operacao', 'Cliente Operação', 3, now() + interval '60 days');
+    insert into public.card_drafts (client_id, content) values ('${OP}', '${conteudoOp("Op")}');
+  `);
+  const estado = async () => (await db.query(`select card_state from public.admin_client_overview where id = '${OP}'`)).rows[0]?.card_state;
+  const auditoria = async (acao) => Number((await db.query(
+    `select count(*) as n from public.admin_audit_log where client_id = '${OP}' and action = '${acao}'`)).rows[0].n);
+
+  verificar("cartão sem publicação: 'never_published'", (await estado()) === "never_published");
+  const publicou = await comoPapelConfirmando(db, "authenticated", ADMIN, `select public.admin_publish_card('${OP}')`);
+  verificar("admin publica o cartão de um cliente", publicou.ok, publicou.erro);
+  verificar("depois de publicar: 'up_to_date'", (await estado()) === "up_to_date");
+  verificar("publicação administrativa gera auditoria", (await auditoria("card_published")) === 1);
+
+  const salvou = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select public.admin_save_draft('${OP}', '${conteudoOp("Op Editado")}'::jsonb)`);
+  verificar("admin salva o rascunho de um cliente", salvou.ok, salvou.erro);
+  verificar("rascunho diferente do publicado: 'pending_changes'", (await estado()) === "pending_changes");
+  await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select public.admin_save_draft('${OP}', '${conteudoOp("Op Editado 2")}'::jsonb)`);
+  verificar("salvamentos seguidos geram UM registro de edição (não um por salvamento)", (await auditoria("card_draft_saved")) === 1);
+  const pendentes = await comoPapel(db, "authenticated", ADMIN,
+    "select username from public.admin_list_clients('alteracoes_nao_publicadas', null, 50, 0)");
+  verificar("filtro 'alterações não publicadas' traz o cliente",
+    pendentes.ok && pendentes.resultado.rows.some((l) => l.username === "operacao"));
+  const atencao = await comoPapel(db, "authenticated", ADMIN, "select * from public.admin_attention_counts()");
+  verificar("contagem de atenção inclui a alteração pendente",
+    atencao.ok && Number(atencao.resultado.rows[0].alteracoes_nao_publicadas) >= 1);
+
+  const descartou = await comoPapelConfirmando(db, "authenticated", ADMIN, `select public.admin_restore_draft('${OP}')`);
+  verificar("admin descarta alterações", descartou.ok, descartou.erro);
+  verificar("depois de descartar: 'up_to_date' (mesmo com updated_at mais novo)", (await estado()) === "up_to_date");
+  verificar("descarte gera auditoria", (await auditoria("card_draft_discarded")) === 1);
+  const semConteudo = await db.query(`select count(*) as n from public.admin_audit_log where client_id = '${OP}' and detail::text like '%Op Editado%'`);
+  verificar("auditoria não guarda o conteúdo do cartão", Number(semConteudo.rows[0].n) === 0);
+
+  verificar("cliente não usa a edição administrativa no cartão de outro",
+    !(await comoPapel(db, "authenticated", OUTRO, `select public.admin_save_draft('${OP}', '${conteudoOp("X")}'::jsonb)`)).ok);
+  verificar("cliente não publica pela função administrativa (nem o próprio)",
+    !(await comoPapel(db, "authenticated", OUTRO, `select public.admin_publish_card('${OUTRO}')`)).ok);
+  verificar("cliente não descarta pela função administrativa",
+    !(await comoPapel(db, "authenticated", OUTRO, `select public.admin_restore_draft('${OP}')`)).ok);
+  const updateDireto = await comoPapel(db, "authenticated", OUTRO,
+    `update public.card_drafts set content = '${conteudoOp("X")}' where client_id = '${OP}' returning client_id`);
+  verificar("cliente não altera o rascunho de outro por UPDATE direto",
+    !updateDireto.ok || updateDireto.resultado.rows.length === 0);
+  const visaoCliente = await comoPapel(db, "authenticated", OUTRO, "select id from public.admin_client_overview");
+  verificar("cliente na visão operacional só vê a própria linha",
+    visaoCliente.ok && visaoCliente.resultado.rows.every((l) => l.id === OUTRO));
+  verificar("anon não lê a visão operacional",
+    !(await comoPapel(db, "anon", null, "select * from public.admin_client_overview")).ok);
+
+  // ---- Dados administrativos do cliente ----
+  const contatoAdmin = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `insert into public.client_admin_contacts (client_id, whatsapp, email) values ('${OP}', '5596981230000', 'op@exemplo.com')`);
+  verificar("admin grava contato administrativo", contatoAdmin.ok, contatoAdmin.erro);
+  const contatoCliente = await comoPapel(db, "authenticated", OP, "select count(*)::int as n from public.client_admin_contacts");
+  verificar("cliente não lê o próprio contato administrativo", contatoCliente.ok && contatoCliente.resultado.rows[0].n === 0);
+  verificar("visitante não lê contatos administrativos",
+    !(await comoPapel(db, "anon", null, "select * from public.client_admin_contacts")).ok);
+  verificar("cliente não grava contato administrativo", !(await comoPapel(db, "authenticated", OUTRO,
+    `insert into public.client_admin_contacts (client_id, whatsapp) values ('${OUTRO}', '5596981230000')`)).ok);
+  verificar("WhatsApp fora do formato é recusado", !(await comoPapel(db, "authenticated", ADMIN,
+    `update public.client_admin_contacts set whatsapp = '(96) 98123' where client_id = '${OP}'`)).ok);
+  const buscaEmail = await comoPapel(db, "authenticated", ADMIN,
+    "select username from public.admin_list_clients('todos', 'op@exemplo', 50, 0)");
+  verificar("busca administrativa encontra pelo e-mail interno",
+    buscaEmail.ok && buscaEmail.resultado.rows.length === 1 && buscaEmail.resultado.rows[0].username === "operacao");
+  const buscaWhats = await comoPapel(db, "authenticated", ADMIN,
+    "select username from public.admin_list_clients('todos', '98123-0000', 50, 0)");
+  verificar("busca administrativa encontra pelos dígitos do WhatsApp",
+    buscaWhats.ok && buscaWhats.resultado.rows.some((l) => l.username === "operacao"));
+
+  // ---- Renovação com pagamento ----
+  const vencAntes = (await db.query(`select expires_at from public.clients where id = '${OP}'`)).rows[0].expires_at;
+  const pagamentoRuim = await comoPapel(db, "authenticated", ADMIN,
+    `select public.renew_client_with_payment('${OP}', 3, 9000, 'boleto', null, null)`);
+  verificar("forma de pagamento inválida é recusada", !pagamentoRuim.ok);
+  const vencDepoisRuim = (await db.query(`select expires_at from public.clients where id = '${OP}'`)).rows[0].expires_at;
+  verificar("pagamento recusado desfaz também a renovação (transação única)", String(vencAntes) === String(vencDepoisRuim));
+  const renovouPagando = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select public.renew_client_with_payment('${OP}', 12, 12000, 'pix', '2026-10-04', 'Pago adiantado')`);
+  verificar("admin renova registrando pagamento", renovouPagando.ok, renovouPagando.erro);
+  const pagamentos = await db.query(`select months, amount_cents, method from public.client_payments where client_id = '${OP}'`);
+  verificar("pagamento gravado com meses, valor e forma",
+    pagamentos.rows.length === 1 && pagamentos.rows[0].amount_cents === 12000 && pagamentos.rows[0].method === "pix");
+  const auditPag = await db.query(`select detail from public.admin_audit_log where client_id = '${OP}' and action = 'payment_recorded'`);
+  verificar("auditoria do pagamento sem a observação livre",
+    auditPag.rows.length === 1 && !JSON.stringify(auditPag.rows[0].detail).includes("adiantado"));
+  await comoPapelConfirmando(db, "authenticated", ADMIN, `select public.renew_client_with_payment('${OP}', 3)`);
+  verificar("renovar sem informar pagamento não cria registro de pagamento",
+    Number((await db.query(`select count(*) as n from public.client_payments where client_id = '${OP}'`)).rows[0].n) === 1);
+  verificar("cliente não renova pela função com pagamento",
+    !(await comoPapel(db, "authenticated", OUTRO, `select public.renew_client_with_payment('${OUTRO}', 12, 1, 'pix')`)).ok);
+  const pagCliente = await comoPapel(db, "authenticated", OP, "select count(*)::int as n from public.client_payments");
+  verificar("cliente não lê os próprios pagamentos", pagCliente.ok && pagCliente.resultado.rows[0].n === 0);
+
+  // ---- Suporte: classificação e prioridade só pelo admin ----
+  verificar("cliente não envia pedido já com prioridade alta", !(await comoPapel(db, "authenticated", OP,
+    `insert into public.support_requests (client_id, kind, message, priority) values ('${OP}', 'help', 'x', 'alta')`)).ok);
+  verificar("cliente não envia pedido com anotação interna", !(await comoPapel(db, "authenticated", OP,
+    `insert into public.support_requests (client_id, kind, message, admin_note) values ('${OP}', 'help', 'x', 'y')`)).ok);
+  await comoPapelConfirmando(db, "authenticated", OP,
+    `insert into public.support_requests (client_id, kind, message) values ('${OP}', 'help', 'Quero mudar o link')`);
+  const classificou = await comoPapel(db, "authenticated", ADMIN,
+    "update public.support_requests set category = 'alteracao', priority = 'alta', admin_note = 'Ligar amanhã' returning id");
+  verificar("admin classifica, prioriza e anota o pedido", classificou.ok && classificou.resultado.rows.length === 1);
+  verificar("categoria fora da lista é recusada", !(await comoPapel(db, "authenticated", ADMIN,
+    "update public.support_requests set category = 'outra'")).ok);
   await db.exec("delete from public.support_requests");
 
   await db.close();

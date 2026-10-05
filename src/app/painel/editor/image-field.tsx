@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRef, useState, useTransition } from "react";
 
-import { enviarImagemAction } from "@/app/painel/editor/actions";
+import { useEditorActions } from "@/app/painel/editor/editor-actions";
 import { ImageCropDialog } from "@/app/painel/editor/image-crop-dialog";
 import { IconImage, IconTrash, IconUpload, IconUser } from "@/components/icons";
 import type { PropositoImagem } from "@/lib/card/images";
@@ -48,6 +48,7 @@ export function ImageField({
   recomendacao?: string;
   rotuloTrocar?: string;
 }) {
+  const { enviarImagem } = useEditorActions();
   const [erro, setErro] = useState<string | null>(null);
   const erroVisivel = useTransientMessage(erro, DURACAO_LEGENDA.erro);
   const [pending, startTransition] = useTransition();
@@ -72,7 +73,7 @@ export function ImageField({
     formData.set("file", arquivo);
     startTransition(async () => {
       try {
-        const resultado = await enviarImagemAction(proposito, formData, buttonId);
+        const resultado = await enviarImagem(proposito, formData, buttonId);
         if (!resultado.ok) {
           setErro(resultado.mensagem);
           return;

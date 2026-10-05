@@ -2,6 +2,13 @@ import "server-only";
 
 import { getActor } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  categoriaEfetiva,
+  isCategoriaSuporte,
+  rotuloCategoria,
+  type CategoriaSuporte,
+  type PrioridadeSuporte,
+} from "@/lib/support/categories";
 import { ENVIOS_SUPORTE_POR_HORA, validarSuporte, type SupportInput, type SupportKind } from "@/lib/support/support";
 
 export type Resultado = { ok: true } | { ok: false; mensagem: string };
@@ -47,6 +54,14 @@ export type PedidoSuporte = {
   status: "open" | "resolved";
   createdAt: string;
   resolvedAt: string | null;
+  /** Categoria efetiva (escolhida pelo admin ou deduzida do tipo). */
+  categoria: CategoriaSuporte;
+  categoriaRotulo: string;
+  /** O admin já classificou (senão a categoria é a deduzida). */
+  classificado: boolean;
+  priority: PrioridadeSuporte;
+  /** Anotação interna do atendimento — nunca vai para o cliente. */
+  adminNote: string | null;
   cliente: { nome: string; username: string } | null;
 };
 
@@ -62,10 +77,14 @@ export async function listarPedidosSuporte(filtro: {
   const supabase = await createSupabaseServerClient();
   let consulta = supabase
     .from("support_requests")
-    .select("id, kind, message, error_text, status, created_at, resolved_at, clients(full_name, username)");
+    .select("id, kind, message, error_text, status, created_at, resolved_at, category, priority, admin_note, clients(full_name, username)");
   if (filtro.status) consulta = consulta.eq("status", filtro.status);
   if (filtro.clientId) consulta = consulta.eq("client_id", filtro.clientId);
-  const { data, error } = await consulta.order("created_at", { ascending: false }).limit(filtro.limite ?? 100);
+  // Prioridade alta primeiro; dentro dela, mais novos no topo.
+  const { data, error } = await consulta
+    .order("priority", { ascending: true })
+    .order("created_at", { ascending: false })
+    .limit(filtro.limite ?? 100);
   if (error || !data) return null;
   return data.map((row) => {
     const cliente = Array.isArray(row.clients) ? row.clients[0] : row.clients;
@@ -77,6 +96,11 @@ export async function listarPedidosSuporte(filtro: {
       status: row.status,
       createdAt: row.created_at,
       resolvedAt: row.resolved_at,
+      categoria: categoriaEfetiva(row.category, row.kind),
+      categoriaRotulo: rotuloCategoria(categoriaEfetiva(row.category, row.kind)),
+      classificado: row.category !== null,
+      priority: row.priority === "alta" ? "alta" : "normal",
+      adminNote: row.admin_note,
       cliente: cliente ? { nome: cliente.full_name, username: cliente.username } : null,
     };
   });
@@ -89,6 +113,32 @@ export async function contarPedidosAbertos(): Promise<number> {
     .select("id", { count: "exact", head: true })
     .eq("status", "open");
   return count ?? 0;
+}
+
+/**
+ * Classifica, prioriza e anota um pedido. Só o administrador (confere aqui e
+ * na política de update do banco).
+ */
+export async function classificarPedidoSuporte(
+  id: number,
+  entrada: { categoria: string; prioridade: string; anotacao: string },
+): Promise<Resultado> {
+  const actor = await getActor();
+  if (!actor.logado || !actor.isAdmin) return { ok: false, mensagem: "Apenas o administrador pode alterar." };
+  if (!Number.isSafeInteger(id) || id <= 0) return { ok: false, mensagem: "Pedido inválido." };
+  if (!isCategoriaSuporte(entrada.categoria)) return { ok: false, mensagem: "Classificação inválida." };
+  if (entrada.prioridade !== "normal" && entrada.prioridade !== "alta") return { ok: false, mensagem: "Prioridade inválida." };
+  const anotacao = entrada.anotacao.trim();
+  if (anotacao.length > 2000) return { ok: false, mensagem: "Anotação: máximo de 2000 caracteres." };
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("support_requests")
+    .update({ category: entrada.categoria, priority: entrada.prioridade, admin_note: anotacao || null })
+    .eq("id", id)
+    .select("id");
+  if (error || !data?.length) return { ok: false, mensagem: "Não foi possível salvar o atendimento." };
+  return { ok: true };
 }
 
 /** Marca como resolvido ou reabre. Só o administrador (confere aqui e no banco). */

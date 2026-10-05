@@ -30,6 +30,22 @@ export async function getDraft(): Promise<CardContent | null> {
 }
 
 /**
+ * Validação do rascunho no modo permissivo, a mesma para o cliente
+ * (`saveDraft`) e para o administrador (`lib/admin/card-editing`).
+ */
+export function validarRascunho(content: CardContent): ResultadoSalvar {
+  const validacaoCartao = validarConteudoCartao(content, false);
+  if (!validacaoCartao.valido) {
+    return { ok: false, mensagem: validacaoCartao.mensagem };
+  }
+  const validacaoBotoes = validarBotoes(content.buttons);
+  if (!validacaoBotoes.valido) {
+    return { ok: false, mensagem: validacaoBotoes.mensagem };
+  }
+  return { ok: true };
+}
+
+/**
  * Salva o rascunho do PRÓPRIO cliente (PRD §16). Valida no modo permissivo
  * (campo ausente é ok) — a validação completa só é exigida para publicar.
  *
@@ -39,14 +55,8 @@ export async function getDraft(): Promise<CardContent | null> {
  * escapa dele.
  */
 export async function saveDraft(content: CardContent): Promise<ResultadoSalvar> {
-  const validacaoCartao = validarConteudoCartao(content, false);
-  if (!validacaoCartao.valido) {
-    return { ok: false, mensagem: validacaoCartao.mensagem };
-  }
-  const validacaoBotoes = validarBotoes(content.buttons);
-  if (!validacaoBotoes.valido) {
-    return { ok: false, mensagem: validacaoBotoes.mensagem };
-  }
+  const validacao = validarRascunho(content);
+  if (!validacao.ok) return validacao;
 
   const supabase = await createSupabaseServerClient();
   const { data: userData } = await supabase.auth.getUser();

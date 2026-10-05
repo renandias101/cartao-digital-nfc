@@ -12,42 +12,26 @@ export type PainelCliente = {
 };
 
 /**
- * Dados do painel do próprio cliente logado. Usa `clients_with_status`
- * (etapa 6) — RLS já limita a própria linha (D31: view herda a política da
- * tabela por ser `security_invoker`).
+ * Dados do painel do próprio cliente logado. A view é `security_invoker`:
+ * a RLS limita à própria linha (D31).
  */
 export async function buscarPainelDoCliente(): Promise<PainelCliente | null> {
   const supabase = await createSupabaseServerClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return null;
 
-  const [cliente, rascunho, publicado] = await Promise.all([
-    supabase
-      .from("clients_with_status")
-      .select("username, full_name, status, days_until_expiry, expires_at")
-      .eq("id", userData.user.id)
-      .maybeSingle(),
-    supabase
-      .from("card_drafts")
-      .select("updated_at")
-      .eq("client_id", userData.user.id)
-      .maybeSingle(),
-    supabase
-      .from("card_published")
-      .select("published_at")
-      .eq("client_id", userData.user.id)
-      .maybeSingle(),
-  ]);
+  // Mesma visão do painel do admin (RLS: o cliente só vê a própria linha).
+  // `card_state` compara o CONTEÚDO do rascunho com o publicado — as datas
+  // acusavam alteração pendente depois de "Descartar alterações".
+  const cliente = await supabase
+    .from("admin_client_overview")
+    .select("username, full_name, status, days_until_expiry, expires_at, card_state")
+    .eq("id", userData.user.id)
+    .maybeSingle();
 
   if (cliente.error || !cliente.data) {
     return null;
   }
-
-  const semPublicacao = !publicado.data;
-  const rascunhoMaisNovo =
-    rascunho.data?.updated_at && publicado.data?.published_at
-      ? new Date(rascunho.data.updated_at) > new Date(publicado.data.published_at)
-      : false;
 
   return {
     username: cliente.data.username,
@@ -55,6 +39,6 @@ export async function buscarPainelDoCliente(): Promise<PainelCliente | null> {
     status: cliente.data.status,
     daysUntilExpiry: cliente.data.days_until_expiry,
     expiresAt: cliente.data.expires_at,
-    temAlteracoesNaoPublicadas: semPublicacao || rascunhoMaisNovo,
+    temAlteracoesNaoPublicadas: cliente.data.card_state !== "up_to_date",
   };
 }

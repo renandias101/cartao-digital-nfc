@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { salvarRascunhoAction, type EstadoAcao } from "@/app/painel/editor/actions";
+import type { EstadoAcao } from "@/app/painel/editor/actions";
+import type { EditorActions } from "@/app/painel/editor/editor-actions";
 import { validarBotoes } from "@/lib/card/buttons";
 import type { CardContent } from "@/lib/card/types";
 import { validarConteudoCartao } from "@/lib/card/validation";
@@ -26,7 +27,12 @@ export type DraftSaveState = {
  * A validação local é só para não fazer viagem inútil: o servidor e a CHECK
  * do banco continuam sendo a autoridade.
  */
-export function useDraftAutosave(content: CardContent, initialContent: CardContent, enabled: boolean) {
+export function useDraftAutosave(
+  content: CardContent,
+  initialContent: CardContent,
+  enabled: boolean,
+  salvarRascunho: EditorActions["salvarRascunho"],
+) {
   const [savedContent, setSavedContent] = useState(initialContent);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +52,7 @@ export function useDraftAutosave(content: CardContent, initialContent: CardConte
     }
     setSaving(true);
     try {
-      const resultado = await salvarRascunhoAction(snapshot);
+      const resultado = await salvarRascunho(snapshot);
       if (resultado.ok) {
         setSavedContent(snapshot);
         setSavedAt(new Date());
@@ -62,7 +68,7 @@ export function useDraftAutosave(content: CardContent, initialContent: CardConte
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [salvarRascunho]);
 
   /** Grava agora (depois das gravações já na fila). */
   const saveNow = useCallback(

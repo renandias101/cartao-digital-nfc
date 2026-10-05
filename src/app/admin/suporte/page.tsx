@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { alterarStatusSuporteAction } from "@/app/admin/suporte/actions";
-import { IconAlert, IconCheck, IconHelp, IconUndo } from "@/components/icons";
+import { alterarStatusSuporteAction, classificarSuporteAction } from "@/app/admin/suporte/actions";
+import { IconAlert, IconCheck, IconEdit, IconExternal, IconHelp, IconUndo, IconUser } from "@/components/icons";
 import { getActor } from "@/lib/auth/session";
+import { urlPublicaDoCartao } from "@/lib/env";
+import { formatarDataHora } from "@/lib/format";
+import { CATEGORIAS_SUPORTE } from "@/lib/support/categories";
 import { contarPedidosAbertos, listarPedidosSuporte } from "@/lib/support/support-server";
 
 const ABAS = [
@@ -11,20 +14,10 @@ const ABAS = [
   { valor: "resolved", rotulo: "Resolvidos" },
 ] as const;
 
-function dataHora(iso: string): string {
-  return new Date(iso).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Belem",
-  });
-}
-
 /**
- * Pedidos enviados pelo balão de suporte do editor do cliente. Texto do
- * cliente é exibido como texto puro (React escapa), com as quebras de linha.
+ * Pedidos enviados pelo balão de suporte do editor do cliente. Prioridade
+ * alta primeiro. O texto do cliente é exibido como texto puro (React
+ * escapa). Classificação, prioridade e anotação são só do administrador.
  */
 export default async function AdminSuportePage(props: PageProps<"/admin/suporte">) {
   const actor = await getActor();
@@ -78,27 +71,30 @@ export default async function AdminSuportePage(props: PageProps<"/admin/suporte"
           {pedidos.map((pedido) => {
             const erro = pedido.kind === "error";
             return (
-              <li key={pedido.id} className="ui-card flex flex-col gap-3 p-4 sm:p-5">
+              <li
+                key={pedido.id}
+                className={`ui-card flex flex-col gap-3 p-4 sm:p-5 ${pedido.priority === "alta" ? "border-destructive/40" : ""}`}
+              >
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      erro ? "bg-destructive/10 text-destructive" : "bg-accent-soft text-foreground"
+                      pedido.categoria === "erro" ? "bg-destructive/10 text-destructive" : "bg-accent-soft text-foreground"
                     }`}
                   >
                     {erro ? <IconAlert className="size-3.5" /> : <IconHelp className="size-3.5" />}
-                    {erro ? "Erro" : "Ajuda"}
+                    {pedido.categoriaRotulo}
                   </span>
+                  {pedido.priority === "alta" ? (
+                    <span className="rounded-full bg-destructive px-2.5 py-0.5 text-xs font-semibold text-white">Prioridade alta</span>
+                  ) : null}
                   {pedido.cliente ? (
-                    <Link
-                      href={`/admin/clientes/${pedido.cliente.username}`}
-                      className="font-medium hover:text-primary hover:underline"
-                    >
+                    <span className="font-medium">
                       {pedido.cliente.nome} <span className="text-muted-foreground">@{pedido.cliente.username}</span>
-                    </Link>
+                    </span>
                   ) : (
                     <span className="text-muted-foreground">Cliente excluído</span>
                   )}
-                  <span className="ml-auto text-xs text-muted-foreground">{dataHora(pedido.createdAt)}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{formatarDataHora(pedido.createdAt)}</span>
                 </div>
 
                 <dl className="flex flex-col gap-2 text-sm">
@@ -114,7 +110,60 @@ export default async function AdminSuportePage(props: PageProps<"/admin/suporte"
                       <dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{pedido.errorText}</dd>
                     </div>
                   ) : null}
+                  {pedido.adminNote ? (
+                    <div className="rounded-lg bg-muted/60 px-3 py-2">
+                      <dt className="text-xs font-medium text-muted-foreground">Anotação interna</dt>
+                      <dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{pedido.adminNote}</dd>
+                    </div>
+                  ) : null}
                 </dl>
+
+                {pedido.cliente ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Link href={`/admin/clientes/${pedido.cliente.username}`} className="ui-btn ui-btn-ghost ui-btn-sm">
+                      <IconUser />
+                      Ver cliente
+                    </Link>
+                    <a href={urlPublicaDoCartao(pedido.cliente.username)} target="_blank" rel="noopener noreferrer" className="ui-btn ui-btn-ghost ui-btn-sm">
+                      <IconExternal />
+                      Abrir cartão
+                    </a>
+                    <Link href={`/admin/clientes/${pedido.cliente.username}/cartao`} className="ui-btn ui-btn-ghost ui-btn-sm">
+                      <IconEdit />
+                      Editar cartão
+                    </Link>
+                  </div>
+                ) : null}
+
+                <details className="rounded-xl border border-border px-3 py-2 text-sm">
+                  <summary className="cursor-pointer py-1 font-medium">Atendimento (uso interno)</summary>
+                  <form action={classificarSuporteAction.bind(null, pedido.id)} className="flex flex-col gap-3 pt-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <label htmlFor={`categoria-${pedido.id}`} className="ui-label">Classificação</label>
+                        <select id={`categoria-${pedido.id}`} name="categoria" defaultValue={pedido.categoria} className="ui-input">
+                          {CATEGORIAS_SUPORTE.map((c) => (
+                            <option key={c.valor} value={c.valor}>{c.rotulo}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label htmlFor={`prioridade-${pedido.id}`} className="ui-label">Prioridade</label>
+                        <select id={`prioridade-${pedido.id}`} name="prioridade" defaultValue={pedido.priority} className="ui-input">
+                          <option value="normal">Normal</option>
+                          <option value="alta">Alta</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label htmlFor={`anotacao-${pedido.id}`} className="ui-label">Anotação interna</label>
+                      <textarea id={`anotacao-${pedido.id}`} name="anotacao" rows={2} maxLength={2000}
+                        defaultValue={pedido.adminNote ?? ""} className="ui-input" />
+                      <p className="ui-hint">Nunca aparece para o cliente.</p>
+                    </div>
+                    <button type="submit" className="ui-btn ui-btn-outline ui-btn-sm w-fit">Salvar atendimento</button>
+                  </form>
+                </details>
 
                 <form action={alterarStatusSuporteAction.bind(null, pedido.id, pedido.status === "open")}>
                   <button type="submit" className="ui-btn ui-btn-outline ui-btn-sm">
@@ -122,7 +171,7 @@ export default async function AdminSuportePage(props: PageProps<"/admin/suporte"
                     {pedido.status === "open" ? "Marcar como resolvido" : "Reabrir"}
                   </button>
                   {pedido.resolvedAt ? (
-                    <span className="ml-3 text-xs text-muted-foreground">Resolvido em {dataHora(pedido.resolvedAt)}</span>
+                    <span className="ml-3 text-xs text-muted-foreground">Resolvido em {formatarDataHora(pedido.resolvedAt)}</span>
                   ) : null}
                 </form>
               </li>

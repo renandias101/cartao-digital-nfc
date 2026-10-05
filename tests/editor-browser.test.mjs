@@ -24,12 +24,37 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
       import {SupportBubble} from './src/app/painel/support-bubble';
       import PublicPage from './src/app/[username]/page';
       import styles from './src/app/painel/editor/editor.module.css';
+      import {CardPreviewTabs} from './src/app/admin/clientes/[username]/card-preview-tabs';
+      import {CardHealthPanel} from './src/app/admin/clientes/[username]/card-health-panel';
+      import {CardStateBadge} from './src/app/admin/card-state-badge';
+      import {avaliarSaudeDoCartao} from './src/lib/admin/card-health';
       Object.defineProperty(crypto, 'randomUUID', {value: undefined});
       window.fixture = {failUpload: true, uploadCount: 0, footer: {title: 'Precisa de uma solução digital?',
         subtitle: 'Sites, sistemas e cartões digitais para o seu negócio.', buttonLabel: 'Solicitar serviço',
         url: 'https://wa.me/5596981233398'}};
       const root = createRoot(document.getElementById('root'));
       window.fixture.showPublic = async () => root.render(await PublicPage({params: Promise.resolve({username:'teste'})}));
+      // Mesmo CardEditor com ações administrativas (presas ao cliente alvo, como na página do admin).
+      // Peças da ficha administrativa (prévia Publicado × Rascunho e saúde).
+      window.fixture.showAdminPieces = () => {
+        const publicado = {displayName:'Renan Dias', backgroundColor:'#0f0f0f', buttonColor:'#1c1c1c', contactPhone:'96 99999-9999',
+          buttons:[{id:'s',type:'link',enabled:true,title:'Meu site',url:'https://a.com'}]};
+        const rascunho = {...publicado, displayName:'Renan Dias (rascunho)'};
+        const saude = avaliarSaudeDoCartao({status:'active', diasParaVencer:10, estadoCartao:'pending_changes', publicado, rascunho});
+        root.render(<main style={{padding:16, display:'grid', gap:16}} data-admin-pieces>
+          <CardStateBadge estado="pending_changes" />
+          <CardHealthPanel nivel={saude.nivel} itens={saude.itens} />
+          <CardPreviewTabs publicado={publicado} rascunho={rascunho} footer={window.fixture.footer} />
+        </main>);
+      };
+      window.fixture.adminCalls = [];
+      const registrar = (nome) => async (...args) => { window.fixture.adminCalls.push(nome); return {ok:true,mensagem:'ok ' + nome}; };
+      window.fixture.showAdminEditor = () => root.render(
+        <main className={styles.page}><section className={styles.workspace}>
+        <CardEditor key="admin" isActive initialContent={{displayName: 'Cliente', backgroundColor:'#000000',
+          buttonColor:'#ffffff', buttons:[]}} actions={{salvarRascunho: registrar('salvar'), publicar: registrar('publicar'),
+          restaurar: registrar('restaurar'), enviarImagem: async () => ({ok:false, mensagem:'sem upload'})}}/>
+        </section></main>);
       root.render(
         <main className={styles.page}><section className={styles.workspace}>
         <CardEditor isActive initialContent={{displayName: 'Teste', backgroundColor:'#edf2fa',
@@ -367,6 +392,25 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     await evaluate("window.fixture.published.professionColor='#3154ae'; window.fixture.showPublic()");
     await until("getComputedStyle(document.querySelector('[data-card-profession]')).color === 'rgb(49, 84, 174)'");
     assert.equal(await evaluate("document.querySelector('[data-digital-card]').style.getPropertyValue('--card-accent')"), palette.accent, "Cor da profissão não altera o destaque");
+    // Peças da ficha administrativa: abas trocam entre publicado e rascunho, sem estourar a largura.
+    await evaluate("window.fixture.showAdminPieces()");
+    await until("document.querySelector('[data-admin-pieces] [data-digital-card] h2')?.textContent === 'Renan Dias'");
+    await evaluate("[...document.querySelectorAll('[role=tab]')].find(b => b.textContent === 'Rascunho').click()");
+    await until("document.querySelector('[data-admin-pieces] [data-digital-card] h2')?.textContent === 'Renan Dias (rascunho)'");
+    assert.ok(await evaluate("document.querySelector('[data-admin-pieces]').textContent.includes('Requer atenção')"));
+    assert.ok(await evaluate("document.documentElement.scrollWidth <= innerWidth"), "Peças da ficha sem overflow");
+    await screenshot(`admin-pieces-${width}.png`);
+    if (width === 1440) {
+      // Editor do admin: salvar e publicar passam pelas ações entregues, não pelas do cliente.
+      const salvoDoCliente = await evaluate("JSON.stringify(window.fixture.saved)");
+      await evaluate("window.fixture.showAdminEditor()");
+      await until("document.getElementById('displayName')?.value === 'Cliente'");
+      await input("displayName", "Cliente Editado");
+      await until("window.fixture.adminCalls.includes('salvar')");
+      await click("Publicar alterações");
+      await until("window.fixture.adminCalls.includes('publicar')");
+      assert.equal(await evaluate("JSON.stringify(window.fixture.saved)"), salvoDoCliente, "ações do cliente não foram usadas");
+    }
     t.diagnostic(`${width}×${height}: botões/uploads OK; profissão, cor, vazio e ordem na prévia e página pública OK.`);
   }
   assert.deepEqual(exceptions, []);

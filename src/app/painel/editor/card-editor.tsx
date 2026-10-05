@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
-import { publicarAction, restaurarAction, type EstadoAcao } from "@/app/painel/editor/actions";
+import type { EstadoAcao } from "@/app/painel/editor/actions";
 import { AppearanceSection } from "@/app/painel/editor/appearance-section";
 import { DraftActions } from "@/app/painel/editor/draft-actions";
+import { ACOES_DO_CLIENTE, EditorActionsProvider, type EditorActions } from "@/app/painel/editor/editor-actions";
 import { LinksEditor } from "@/app/painel/editor/links-editor";
 import { PreviewPanel } from "@/app/painel/editor/preview-panel";
 import { ProfileSection } from "@/app/painel/editor/profile-section";
@@ -23,6 +24,10 @@ import styles from "./editor.module.css";
  * salvamento manual); a página pública só muda ao publicar (PRD §16, §17).
  * `passwordForm` entra como subseção do Perfil, mas continua independente
  * do rascunho.
+ *
+ * `actions`: o que salvar/publicar/descartar/enviar imagem fazem. Padrão:
+ * o cliente no próprio cartão. O admin passa ações presas ao cliente alvo —
+ * mesmo editor, mesmas validações, autorização no servidor.
  */
 export function CardEditor({
   initialContent,
@@ -30,6 +35,7 @@ export function CardEditor({
   hasUnpublishedChanges = false,
   passwordForm,
   footer,
+  actions = ACOES_DO_CLIENTE,
 }: {
   initialContent: CardContent;
   isActive: boolean;
@@ -37,12 +43,13 @@ export function CardEditor({
   passwordForm?: ReactNode;
   /** Rodapé do sistema: só aparece na prévia, o cliente não edita. */
   footer?: CardFooter | null;
+  actions?: EditorActions;
 }) {
   const [content, setContent] = useState<CardContent>(initialContent);
   const [publicadoEm, setPublicadoEm] = useState<Date | null>(null);
   const [mensagem, setMensagem] = useState<EstadoAcao>({ ok: null, mensagem: null });
   const [pending, startTransition] = useTransition();
-  const { state: salvamento, saveNow, pause, resume } = useDraftAutosave(content, initialContent, isActive);
+  const { state: salvamento, saveNow, pause, resume } = useDraftAutosave(content, initialContent, isActive, actions.salvarRascunho);
   const saindoDeProposito = useRef(false);
 
   // Rascunho gravado depois da última publicação = alterações não publicadas.
@@ -82,7 +89,7 @@ export function CardEditor({
             return;
           }
         }
-        const resultado = await publicarAction();
+        const resultado = await actions.publicar();
         setMensagem(resultado);
         if (resultado.ok) setPublicadoEm(new Date());
       } catch {
@@ -96,7 +103,7 @@ export function CardEditor({
       // Nenhuma gravação automática pode chegar depois da restauração.
       await pause();
       try {
-        const resultado = await restaurarAction();
+        const resultado = await actions.restaurar();
         setMensagem(resultado);
         if (resultado.ok) {
           saindoDeProposito.current = true;
@@ -133,31 +140,33 @@ export function CardEditor({
   }
 
   return (
-    <div className={styles.editorGrid}>
-      <div className={styles.editColumn}>
-        <div className={styles.fields}>
-          <ProfileSection content={content} onChange={atualizarCampo} passwordForm={passwordForm} />
-          <AppearanceSection content={content} onChange={atualizarCampo} />
-          <LinksEditor
-            content={content}
-            setContent={setContent}
-            onMoveButton={moverParaModelo}
-            onError={(texto) => setMensagem({ ok: false, mensagem: texto })}
+    <EditorActionsProvider value={actions}>
+      <div className={styles.editorGrid}>
+        <div className={styles.editColumn}>
+          <div className={styles.fields}>
+            <ProfileSection content={content} onChange={atualizarCampo} passwordForm={passwordForm} />
+            <AppearanceSection content={content} onChange={atualizarCampo} />
+            <LinksEditor
+              content={content}
+              setContent={setContent}
+              onMoveButton={moverParaModelo}
+              onError={(texto) => setMensagem({ ok: false, mensagem: texto })}
+            />
+          </div>
+
+          <DraftActions
+            saveState={salvamento}
+            hasUnpublishedChanges={naoPublicado}
+            pending={pending}
+            message={mensagem}
+            onSaveNow={salvarAgora}
+            onPublish={publicar}
+            onDiscard={descartar}
           />
         </div>
 
-        <DraftActions
-          saveState={salvamento}
-          hasUnpublishedChanges={naoPublicado}
-          pending={pending}
-          message={mensagem}
-          onSaveNow={salvarAgora}
-          onPublish={publicar}
-          onDiscard={descartar}
-        />
+        <PreviewPanel content={content} footer={footer} onMoveButton={moverParaModelo} />
       </div>
-
-      <PreviewPanel content={content} footer={footer} onMoveButton={moverParaModelo} />
-    </div>
+    </EditorActionsProvider>
   );
 }
