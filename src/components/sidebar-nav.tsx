@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { IconCard, IconHome, IconUserPlus, IconUsers } from "@/components/icons";
+import { IconCard, IconHelp, IconHome, IconLayers, IconUserPlus, IconUsers } from "@/components/icons";
 
 const ICONES = {
   home: IconHome,
   card: IconCard,
   users: IconUsers,
   userPlus: IconUserPlus,
+  layers: IconLayers,
+  help: IconHelp,
 };
 
 export type NavItem = {
@@ -20,6 +22,8 @@ export type NavItem = {
   activePrefixes?: string[];
   /** Caminhos que, mesmo casando com um prefixo, NÃO ativam o item. */
   exclude?: string[];
+  /** Contador ao lado do nome (ex.: pedidos de suporte abertos). Some quando é 0. */
+  badge?: { count: number; label: string };
 };
 
 function estaAtivo(item: NavItem, pathname: string): boolean {
@@ -58,6 +62,14 @@ export function SidebarNav({
           >
             <Icone className={`size-5 shrink-0 ${ativo ? "text-gold" : ""}`} />
             {item.label}
+            {item.badge && item.badge.count > 0 ? (
+              <span className="ml-auto inline-flex min-w-6 items-center justify-center rounded-full bg-gold px-1.5 text-xs font-semibold text-sidebar tabular-nums">
+                <span aria-hidden="true">{item.badge.count > 99 ? "99+" : item.badge.count}</span>
+                <span className="sr-only">
+                  {" "}— {item.badge.count} {item.badge.label}
+                </span>
+              </span>
+            ) : null}
           </Link>
         );
       })}

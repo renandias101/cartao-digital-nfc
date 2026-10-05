@@ -4,6 +4,7 @@ import styles from "@/components/digital-card.module.css";
 import { notFound } from "next/navigation";
 
 import { getPublicCard, usernameExists } from "@/lib/card/public";
+import { getCardFooter } from "@/lib/system/card-footer-server";
 
 /**
  * Página pública do cartão (PRD §62 — o que o NFC abre).
@@ -68,9 +69,11 @@ export default async function CartaoPublicoPage(props: PageProps<"/[username]">)
     notFound();
   }
 
+  // Rodapé do sistema só no cartão ativo: a página neutra acima não mostra nada.
+  const footer = await getCardFooter();
   return (
     <main className={styles.page} style={{ backgroundColor: card.backgroundColor ?? "#ffffff" }}>
-      <DigitalCard content={card} />
+      <DigitalCard content={card} footer={footer} />
     </main>
   );
 }

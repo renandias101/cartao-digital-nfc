@@ -8,6 +8,7 @@ import { ImageCropDialog } from "@/app/painel/editor/image-crop-dialog";
 import { IconImage, IconTrash, IconUpload, IconUser } from "@/components/icons";
 import type { PropositoImagem } from "@/lib/card/images";
 import { validateImageFile } from "@/lib/card/image-upload";
+import { DURACAO_LEGENDA, useTransientMessage } from "@/components/use-transient-message";
 import styles from "./editor.module.css";
 
 /**
@@ -48,6 +49,7 @@ export function ImageField({
   rotuloTrocar?: string;
 }) {
   const [erro, setErro] = useState<string | null>(null);
+  const erroVisivel = useTransientMessage(erro, DURACAO_LEGENDA.erro);
   const [pending, startTransition] = useTransition();
   const [recorte, setRecorte] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -97,9 +99,9 @@ export function ImageField({
       }}
     />
   );
-  const mensagemErro = erro ? (
+  const mensagemErro = erroVisivel ? (
     <p role="alert" className={`text-xs text-destructive ${variante === "cartao" ? styles.imageTileError : ""}`}>
-      {erro}
+      {erroVisivel}
     </p>
   ) : null;
   const botaoRemover = valor ? (

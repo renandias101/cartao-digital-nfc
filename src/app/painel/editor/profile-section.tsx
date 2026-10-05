@@ -6,7 +6,8 @@ import { EditorSection } from "@/app/painel/editor/editor-section";
 import { ImageField } from "@/app/painel/editor/image-field";
 import { IconUser } from "@/components/icons";
 import type { CardContent } from "@/lib/card/types";
-import { LIMITES_TEXTO } from "@/lib/constants";
+import { ContadorCaracteres } from "@/app/painel/editor/character-counter";
+import { LIMITES_TEXTO, contarCaracteres } from "@/lib/constants";
 import styles from "./editor.module.css";
 
 /** Imagens e textos do topo do cartão; a troca de senha entra no fim, como subseção. */
@@ -101,19 +102,18 @@ export function ProfileSection({
           <textarea
             id="description"
             value={descricao}
-            maxLength={LIMITES_TEXTO.descricaoPrincipal}
             rows={3}
             aria-describedby="description-count"
+            aria-invalid={contarCaracteres(descricao) > LIMITES_TEXTO.descricaoPrincipal || undefined}
             onChange={(e) => onChange({ description: e.target.value })}
             className="ui-input pb-7"
           />
-          <span
+          <ContadorCaracteres
             id="description-count"
-            className="pointer-events-none absolute right-3 bottom-2 text-xs text-muted-foreground tabular-nums"
-          >
-            {descricao.length}/{LIMITES_TEXTO.descricaoPrincipal}
-            <span className="sr-only"> caracteres usados</span>
-          </span>
+            texto={descricao}
+            limite={LIMITES_TEXTO.descricaoPrincipal}
+            className="pointer-events-none absolute right-3 bottom-2 text-xs tabular-nums"
+          />
         </div>
       </div>
 

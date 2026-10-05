@@ -66,6 +66,13 @@ export type CardButton =
 
 export type ButtonType = CardButton["type"];
 
+/**
+ * Tipos oferecidos ao criar um botão. "Telefone" saiu: o número agora fica no
+ * "Salvar Contato" (`contactPhone`). Botões de telefone já salvos continuam
+ * válidos, aparecem no cartão e podem ser editados — só não se cria mais.
+ */
+export const TIPOS_PARA_CRIAR: readonly ButtonType[] = ["link", "text", "wifi", "pix", "address"];
+
 export const TIPOS_DE_BOTAO: readonly ButtonType[] = [
   "link",
   "text",
@@ -81,6 +88,8 @@ export type CardContent = {
   professionColor?: string;
   /** Cor do botão "Salvar Contato", da borda da foto e dos ícones. Opcional: sem ela, deriva das demais cores. */
   accentColor?: string;
+  /** Telefone gravado pelo "Salvar Contato" (vCard). Dado pessoal: nunca vai para duplicação. */
+  contactPhone?: string;
   description?: string;
   backgroundColor?: string;
   buttonColor?: string;

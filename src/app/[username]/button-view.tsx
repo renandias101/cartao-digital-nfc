@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { IconChevronDown, IconLink } from "@/components/icons";
 import { SYSTEM_ICON_COMPONENTS } from "@/components/system-icons";
+import { ModalButton } from "@/components/modal-button";
 import {
   isSystemIconKey,
   isUploadedIcon,
@@ -63,14 +64,22 @@ export function ButtonView({ button }: { button: CardButton }) {
     return <a href={button.url} target="_blank" rel="noopener noreferrer" className={styles.action} data-button-id={button.id}>{heading}</a>;
   }
 
+  // Texto e Wi-Fi abrem num modal em vez de empurrar os outros botões.
+  if (button.type === "text" || button.type === "wifi") {
+    return <ModalButton buttonId={button.id} title={button.title || labels[button.type]} heading={heading}>
+      {button.type === "text" ? <>
+        {button.description ? <p className={styles.modalDescription}>{button.description}</p> : null}
+        <p>{button.content}</p>
+      </> : <>
+        <p>Rede: {button.ssid}</p>
+        <p>Senha: {button.password}</p>
+        <CopyButton value={button.password} label="Copiar senha" />
+      </>}
+    </ModalButton>;
+  }
+
   let details: ReactNode;
   switch (button.type) {
-    case "text":
-      details = <>{button.description ? <p>{button.description}</p> : null}<p>{button.content}</p></>;
-      break;
-    case "wifi":
-      details = <><p>Rede: {button.ssid}</p><p>Senha: {button.password}</p><CopyButton value={button.password} label="Copiar senha" /></>;
-      break;
     case "pix":
       details = <><p>{button.key}</p><CopyButton value={button.key} label="Copiar chave" /></>;
       break;

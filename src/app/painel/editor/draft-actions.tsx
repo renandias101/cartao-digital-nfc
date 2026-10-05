@@ -7,6 +7,7 @@ import { AnchoredPopover } from "@/app/painel/editor/anchored-popover";
 import { ConfirmDialog } from "@/app/painel/editor/confirm-dialog";
 import type { DraftSaveState } from "@/app/painel/editor/use-draft-autosave";
 import { IconCheck, IconTrash, IconUndo } from "@/components/icons";
+import { DURACAO_LEGENDA, useTransientMessage } from "@/components/use-transient-message";
 import styles from "./editor.module.css";
 
 function horario(data: Date): string {
@@ -62,17 +63,23 @@ export function DraftActions({
 }) {
   const [confirmando, setConfirmando] = useState(false);
   const naoPublicado = hasUnpublishedChanges || saveState.dirty;
+  // Resultado de publicar/descartar/salvar: some sozinho. O erro do salvamento
+  // automático (SaveIndicator) fica, porque enquanto existir há alteração em risco.
+  const legenda = useTransientMessage(
+    message.mensagem ? message : null,
+    message.ok ? DURACAO_LEGENDA.sucesso : DURACAO_LEGENDA.erro,
+  );
 
   return (
-    <section className={styles.actionBar} aria-label="Ações do cartão">
+    <section className={styles.actionBar} aria-label="Ações do cartão" data-editor-action-bar>
       <div className={styles.actionStatus}>
         <SaveIndicator state={saveState} />
-        {message.mensagem ? (
+        {legenda ? (
           <p
-            role={message.ok ? "status" : "alert"}
-            className={`text-sm ${message.ok ? "text-success" : "text-destructive"}`}
+            role={legenda.ok ? "status" : "alert"}
+            className={`text-sm ${legenda.ok ? "text-success" : "text-destructive"}`}
           >
-            {message.mensagem}
+            {legenda.mensagem}
           </p>
         ) : null}
       </div>

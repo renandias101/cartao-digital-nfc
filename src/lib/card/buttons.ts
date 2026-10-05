@@ -1,4 +1,4 @@
-import { LIMITES_TEXTO, MAX_BOTOES, ESQUEMAS_URL_ACEITOS } from "@/lib/constants";
+import { LIMITES_TEXTO, MAX_BOTOES, ESQUEMAS_URL_ACEITOS, contarCaracteres } from "@/lib/constants";
 import type { CardButton, CardContent } from "@/lib/card/types";
 import { createButtonId } from "@/lib/card/button-id";
 import { checkSquareEligibility } from "@/lib/card/presentation";
@@ -12,10 +12,10 @@ export function validarBotao(btn: CardButton): { valido: true } | { valido: fals
   if (!btn.id) {
     return { valido: false, mensagem: "Botão sem identificador." };
   }
-  if (btn.title !== undefined && btn.title.length > LIMITES_TEXTO.tituloBotao) {
+  if (btn.title !== undefined && contarCaracteres(btn.title) > LIMITES_TEXTO.tituloBotao) {
     return { valido: false, mensagem: `Título: máximo de ${LIMITES_TEXTO.tituloBotao} caracteres.` };
   }
-  if ("description" in btn && btn.description !== undefined && btn.description.length > LIMITES_TEXTO.descricaoBotao) {
+  if ("description" in btn && btn.description !== undefined && contarCaracteres(btn.description) > LIMITES_TEXTO.descricaoBotao) {
     return { valido: false, mensagem: `Descrição: máximo de ${LIMITES_TEXTO.descricaoBotao} caracteres.` };
   }
   if (btn.layout !== undefined && btn.layout !== "square" && btn.layout !== "row") {
@@ -50,7 +50,7 @@ function validarCamposDoTipo(btn: CardButton): { valido: true } | { valido: fals
     case "text": {
       if (!btn.title) return { valido: false, mensagem: "Informe o título." };
       if (!btn.content) return { valido: false, mensagem: "Informe o conteúdo do texto." };
-      if (btn.content.length > LIMITES_TEXTO.textoInformativo) {
+      if (contarCaracteres(btn.content) > LIMITES_TEXTO.textoInformativo) {
         return {
           valido: false,
           mensagem: `Texto informativo: máximo de ${LIMITES_TEXTO.textoInformativo} caracteres.`,

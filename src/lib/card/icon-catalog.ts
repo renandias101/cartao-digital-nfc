@@ -24,12 +24,15 @@ type IconEntry = {
   label: string;
   category: IconCategoryId;
   keywords: readonly string[];
+  /** Fora do seletor; continua desenhando para botões que já usam a chave. */
+  retired?: true;
 };
 
 export const ICON_CATALOG = [
   // Contato
   { key: "whatsapp", label: "WhatsApp", category: "contact", keywords: ["zap", "whats", "mensagem", "conversa", "chat"] },
-  { key: "phone", label: "Telefone", category: "contact", keywords: ["ligar", "celular", "ligacao", "fone", "tel"] },
+  // Aposentado: o número fica no "Salvar Contato".
+  { key: "phone", label: "Telefone", category: "contact", keywords: ["ligar", "celular", "ligacao", "fone", "tel"], retired: true },
   { key: "email", label: "E-mail", category: "contact", keywords: ["email", "correio", "carta", "mail", "gmail", "outlook"] },
   { key: "telegram", label: "Telegram", category: "contact", keywords: ["telegran", "mensagem", "chat"] },
   { key: "contact", label: "Contato / pessoa", category: "contact", keywords: ["salvar contato", "agenda", "perfil", "usuario", "pessoa", "vcard"] },
@@ -52,9 +55,11 @@ export const ICON_CATALOG = [
   { key: "store", label: "Loja", category: "business", keywords: ["comprar", "vendas", "ecommerce", "e-commerce", "mercado", "shop"] },
   { key: "calendar", label: "Agendamento", category: "business", keywords: ["agendar", "agenda", "calendario", "reservar", "reserva", "horario", "data"] },
   { key: "star", label: "Avaliações", category: "business", keywords: ["avaliacoes", "avaliacao", "estrela", "reviews", "opiniao", "depoimentos", "nota"] },
+  { key: "google", label: "Avaliação no Google", category: "business", keywords: ["google", "google meu negocio", "perfil da empresa", "gmn", "avaliar", "avaliacao", "avaliacoes", "reviews", "estrelas"] },
   // Utilidades
   { key: "card", label: "Pix / pagamento", category: "utility", keywords: ["pix", "cartao", "pagar", "pagamento", "cobranca", "banco"] },
-  { key: "lock", label: "Wi-Fi / cadeado", category: "utility", keywords: ["wifi", "wi-fi", "senha", "rede", "internet sem fio", "seguranca"] },
+  // Chave "lock" mantida por compatibilidade: o desenho hoje é o símbolo de Wi-Fi.
+  { key: "lock", label: "Wi-Fi", category: "utility", keywords: ["wifi", "wi-fi", "senha", "rede", "internet sem fio", "sinal"] },
   { key: "map-pin", label: "Endereço / localização", category: "utility", keywords: ["endereco", "localizacao", "mapa", "onde", "como chegar", "local"] },
   { key: "note", label: "Documento / texto", category: "utility", keywords: ["documento", "texto", "informacao", "informacoes", "nota", "anotacao", "pdf", "arquivo"] },
 ] as const satisfies readonly IconEntry[];
@@ -70,6 +75,9 @@ function normalize(text: string): string {
   return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("pt-BR").trim();
 }
 
+/** Ícones que o cliente ainda pode escolher (sem os aposentados). */
+const SELECTABLE_ICONS = ICON_CATALOG.filter((entry) => !("retired" in entry));
+
 /**
  * Ícones que combinam com a busca (todas as palavras digitadas precisam
  * aparecer no nome, na categoria ou nos sinônimos). Cada ícone sai no máximo
@@ -77,8 +85,8 @@ function normalize(text: string): string {
  */
 export function searchIcons(query: string): ReadonlyArray<(typeof ICON_CATALOG)[number]> {
   const words = normalize(query).split(/\s+/).filter(Boolean);
-  if (!words.length) return ICON_CATALOG;
-  return ICON_CATALOG.filter((entry) => {
+  if (!words.length) return SELECTABLE_ICONS;
+  return SELECTABLE_ICONS.filter((entry) => {
     const category = ICON_CATEGORIES.find((c) => c.id === entry.category)?.label ?? "";
     const haystack = normalize([entry.label, category, ...entry.keywords].join(" "));
     return words.every((word) => haystack.includes(word));

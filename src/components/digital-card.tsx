@@ -2,16 +2,25 @@ import Image from "next/image";
 import type { CSSProperties } from "react";
 import { ButtonView, FeaturedLink } from "@/app/[username]/button-view";
 import { CardProfession } from "@/components/card-profession";
+import { IconChevronDown } from "@/components/icons";
 import { SaveContactButton } from "@/components/save-contact-button";
 import { botoesVisiveis } from "@/lib/card/buttons";
 import { getAccentColor, getCardInitials, organizeCardButtons } from "@/lib/card/presentation";
 import { getContrastingColor } from "@/lib/card/profession";
 import type { CardContent } from "@/lib/card/types";
 import { getContactCardData } from "@/lib/card/vcard";
+import type { CardFooter } from "@/lib/system/card-footer";
 import styles from "./digital-card.module.css";
 
-/** Única composição para a versão publicada e a prévia do rascunho. */
-export function DigitalCard({ content, preview = false }: { content: CardContent; preview?: boolean }) {
+/**
+ * Única composição para a versão publicada e a prévia do rascunho.
+ * `footer` é o rodapé do sistema: vem do administrador, nunca de `content`.
+ */
+export function DigitalCard({ content, preview = false, footer }: {
+  content: CardContent;
+  preview?: boolean;
+  footer?: CardFooter | null;
+}) {
   const background = content.backgroundColor ?? "#ffffff";
   const surface = content.buttonColor ?? "#1c1c1c";
   const foreground = getContrastingColor(background);
@@ -61,6 +70,18 @@ export function DigitalCard({ content, preview = false }: { content: CardContent
       {regular.length ? <div className={styles.links} data-button-zone="row">
         {regular.map(button => <ButtonView key={button.id} button={button} />)}
       </div> : preview ? <div className={styles.links} data-button-zone="row" data-empty-zone hidden /> : null}
+      {footer ? (
+        <footer className={styles.systemFooter} data-card-footer>
+          <div className={styles.systemFooterText}>
+            <p className={styles.systemFooterTitle}>{footer.title}</p>
+            {footer.subtitle ? <p className={styles.systemFooterSubtitle}>{footer.subtitle}</p> : null}
+          </div>
+          <a href={footer.url} target="_blank" rel="noopener noreferrer" className={styles.systemFooterAction}>
+            {footer.buttonLabel}
+            <IconChevronDown className={styles.systemFooterArrow} />
+          </a>
+        </footer>
+      ) : null}
     </article>
   );
 }

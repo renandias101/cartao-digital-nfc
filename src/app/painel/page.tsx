@@ -5,11 +5,13 @@ import { ChangePasswordForm } from "@/app/painel/change-password-form";
 import { CardEditor } from "@/app/painel/editor/card-editor";
 import editorStyles from "@/app/painel/editor/editor.module.css";
 import { EditorHeader } from "@/app/painel/editor-header";
+import { SupportBubble } from "@/app/painel/support-bubble";
 import { IconAlert, IconClock, IconLogout } from "@/components/icons";
 import { buscarPainelDoCliente } from "@/lib/card/dashboard";
 import { getDraft } from "@/lib/card/draft";
 import { getActor } from "@/lib/auth/session";
 import { publicEnv, urlPublicaDoCartao } from "@/lib/env";
+import { getCardFooter } from "@/lib/system/card-footer-server";
 
 function linkWhatsapp(): string {
   const mensagem = encodeURIComponent("Olá, gostaria de renovar meu cartão digital.");
@@ -33,7 +35,7 @@ export default async function PainelPage() {
     redirect("/admin");
   }
 
-  const [painel, content] = await Promise.all([buscarPainelDoCliente(), getDraft()]);
+  const [painel, content, footer] = await Promise.all([buscarPainelDoCliente(), getDraft(), getCardFooter()]);
   if (!painel) {
     // Sessão válida mas sem linha em `clients` — não deveria acontecer no
     // fluxo normal (só admin não tem linha em clients, e já foi tratado
@@ -114,6 +116,7 @@ export default async function PainelPage() {
             isActive={ativo}
             hasUnpublishedChanges={painel.temAlteracoesNaoPublicadas}
             passwordForm={<ChangePasswordForm />}
+            footer={footer}
           />
         ) : (
           <div className="flex flex-col gap-4">
@@ -126,6 +129,7 @@ export default async function PainelPage() {
           </div>
         )}
       </section>
+      <SupportBubble />
     </main>
   );
 }

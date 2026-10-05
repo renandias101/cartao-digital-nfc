@@ -7,20 +7,26 @@ import {
   excluirAction,
   renovarAction,
   resetSenhaAction,
+  salvarNomeAction,
   salvarNotasAction,
   type AcaoState,
 } from "@/app/admin/clientes/[username]/actions";
+import { DURACAO_LEGENDA, useTransientMessage } from "@/components/use-transient-message";
 
 const ESTADO_INICIAL: AcaoState = { ok: null, mensagem: null };
 
 function Mensagem({ estado }: { estado: AcaoState }) {
-  if (estado.ok === null) return null;
+  const legenda = useTransientMessage(
+    estado.ok === null ? null : estado,
+    estado.ok ? DURACAO_LEGENDA.sucesso : DURACAO_LEGENDA.erro,
+  );
+  if (!legenda) return null;
   return (
     <p
-      role={estado.ok ? "status" : "alert"}
-      className={`text-sm ${estado.ok ? "text-success" : "text-destructive"}`}
+      role={legenda.ok ? "status" : "alert"}
+      className={`text-sm ${legenda.ok ? "text-success" : "text-destructive"}`}
     >
-      {estado.mensagem}
+      {legenda.mensagem}
     </p>
   );
 }
@@ -131,6 +137,49 @@ export function ResetPasswordForm({ clientId, username }: { clientId: string; us
         >
           {pending ? "Salvando…" : "Redefinir"}
         </button>
+      </div>
+      <Mensagem estado={estado} />
+    </form>
+  );
+}
+
+/** Nome do cliente (uso interno). O nome de usuário e a URL não mudam. */
+export function EditNameForm({
+  clientId,
+  username,
+  nomeAtual,
+}: {
+  clientId: string;
+  username: string;
+  nomeAtual: string;
+}) {
+  const acao = salvarNomeAction.bind(null, clientId, username);
+  const [estado, formAction, pending] = useActionState(acao, ESTADO_INICIAL);
+
+  return (
+    <form action={formAction} className="flex flex-col gap-3">
+      <div className="space-y-1.5">
+        <label htmlFor="full_name" className="ui-label">
+          Nome do cliente
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <input
+            id="full_name"
+            name="full_name"
+            type="text"
+            required
+            minLength={2}
+            maxLength={120}
+            defaultValue={nomeAtual}
+            className="ui-input min-w-0 flex-1"
+          />
+          <button type="submit" disabled={pending} className="ui-btn ui-btn-outline">
+            {pending ? "Salvando…" : "Salvar nome"}
+          </button>
+        </div>
+        <p className="ui-hint">
+          Nome usado no painel. O nome de usuário (@{username}) e a URL do cartão não mudam.
+        </p>
       </div>
       <Mensagem estado={estado} />
     </form>

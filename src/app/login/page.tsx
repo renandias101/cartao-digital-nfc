@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { loginAction, type LoginState } from "@/app/login/actions";
+import { DURACAO_LEGENDA, useTransientMessage } from "@/components/use-transient-message";
 import styles from "./login.module.css";
 
 const initialState: LoginState = { error: null };
@@ -23,6 +24,7 @@ const userShape = <><circle cx="12" cy="7" r="3.5" /><path d="M4.5 21v-2a7.5 7.5
 /** Login único; a arte de referência é apresentada apenas no painel promocional. */
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
+  const erro = useTransientMessage(state.error ? state : null, DURACAO_LEGENDA.erro)?.error;
   const [showPassword, setShowPassword] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [storageNotice, setStorageNotice] = useState("");
@@ -114,7 +116,7 @@ export default function LoginPage() {
                 <input ref={usernameRef} id="username" name="username" type="text"
                   autoComplete="username" autoCapitalize="none" spellCheck={false}
                   required maxLength={64} placeholder="Digite seu usuário"
-                  aria-describedby={state.error ? "login-error" : undefined} />
+                  aria-describedby={erro ? "login-error" : undefined} />
               </div>
             </div>
 
@@ -128,7 +130,7 @@ export default function LoginPage() {
                 <input id="password" name="password" type={showPassword ? "text" : "password"}
                   autoComplete="current-password" required maxLength={200}
                   placeholder="Digite sua senha"
-                  aria-describedby={state.error ? "login-error" : undefined} />
+                  aria-describedby={erro ? "login-error" : undefined} />
                 <button type="button" className={styles.eye}
                   onClick={() => setShowPassword((visible) => !visible)}
                   aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
@@ -182,7 +184,7 @@ export default function LoginPage() {
             </div>
 
             {storageNotice ? <p className={styles.notice} role="status">{storageNotice}</p> : null}
-            {state.error ? <p id="login-error" className={styles.error} role="alert">{state.error}</p> : null}
+            {erro ? <p id="login-error" className={styles.error} role="alert">{erro}</p> : null}
 
             <button type="submit" disabled={pending} className={styles.submit}>
               {pending ? "Entrando…" : "Entrar"}

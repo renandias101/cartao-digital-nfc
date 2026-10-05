@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type Actor =
@@ -23,8 +25,11 @@ export type Actor =
  * Esta função é conveniência para montar a interface (qual painel mostrar).
  * Ela NÃO substitui a checagem de propriedade em cada Server Action — essa
  * responsabilidade é do RLS e de cada action, como registrado em D7.
+ *
+ * `cache()` do React: o layout do admin e a página chamam esta função na
+ * mesma requisição sem repetir a consulta. Reinicia a cada requisição.
  */
-export async function getActor(): Promise<Actor> {
+export const getActor = cache(async (): Promise<Actor> => {
   const supabase = await createSupabaseServerClient();
 
   const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -40,4 +45,4 @@ export async function getActor(): Promise<Actor> {
   }
 
   return { logado: true, userId: userData.user.id, isAdmin: Boolean(isAdmin) };
-}
+});

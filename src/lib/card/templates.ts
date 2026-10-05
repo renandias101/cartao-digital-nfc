@@ -55,7 +55,7 @@ export const CARD_TEMPLATES: readonly CardTemplate[] = [
     name: "Clássico",
     backgroundColor: "#ffffff",
     buttonColor: "#111827",
-    buttonTypes: ["link", "phone", "address"],
+    buttonTypes: ["link", "text", "address"],
   },
   {
     id: "escuro",
@@ -69,7 +69,7 @@ export const CARD_TEMPLATES: readonly CardTemplate[] = [
     name: "Colorido",
     backgroundColor: "#fef3c7",
     buttonColor: "#ea580c",
-    buttonTypes: ["link", "text", "phone"],
+    buttonTypes: ["link", "text", "wifi"],
   },
 ] as const;
 
@@ -104,6 +104,9 @@ export function duplicarConteudoSemDadosPessoais(original: CardContent): CardCon
     buttonColor: original.buttonColor,
     professionColor: original.professionColor,
     accentColor: original.accentColor,
-    buttons: original.buttons.map((b) => botaoPlaceholder(b.type, crypto.randomUUID(), b.enabled)),
+    // Telefone não é mais criado (o número fica no "Salvar Contato"): não passa adiante.
+    buttons: original.buttons
+      .filter((b) => b.type !== "phone")
+      .map((b) => botaoPlaceholder(b.type, crypto.randomUUID(), b.enabled)),
   };
 }

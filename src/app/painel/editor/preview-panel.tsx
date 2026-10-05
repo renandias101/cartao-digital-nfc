@@ -7,6 +7,7 @@ import { DigitalCard } from "@/components/digital-card";
 import cardStyles from "@/components/digital-card.module.css";
 import { IconMonitor, IconSmartphone } from "@/components/icons";
 import type { CardContent } from "@/lib/card/types";
+import type { CardFooter } from "@/lib/system/card-footer";
 import styles from "./editor.module.css";
 
 /** Largura simulada da tela no modo Desktop; a prévia é reduzida para caber. */
@@ -27,9 +28,11 @@ function subscribeWide(onChange: () => void) {
  */
 export function PreviewPanel({
   content,
+  footer,
   onMoveButton,
 }: {
   content: CardContent;
+  footer?: CardFooter | null;
   onMoveButton: (id: string, target: DropTarget) => void;
 }) {
   const [device, setDevice] = useState<"mobile" | "desktop">("mobile");
@@ -58,11 +61,13 @@ export function PreviewPanel({
         </div>
       </header>
 
-      {showDesktop ? <DesktopPreview content={content} /> : <PhonePreview content={content} onMoveButton={onMoveButton} />}
+      {showDesktop ? <DesktopPreview content={content} footer={footer} />
+        : <PhonePreview content={content} footer={footer} onMoveButton={onMoveButton} />}
 
       {showDesktop ? null : (
         <p className={styles.previewTip}>
-          Dica: segure um item na prévia e arraste para reorganizar. As alterações aparecem aqui na hora.
+          Dica: arraste um item na prévia para reorganizar (no celular, segure antes). As alterações aparecem aqui na
+          hora.
         </p>
       )}
     </aside>
@@ -72,9 +77,11 @@ export function PreviewPanel({
 /** Segurar um botão na prévia permite arrastá-lo, como na lista do editor. */
 function PhonePreview({
   content,
+  footer,
   onMoveButton,
 }: {
   content: CardContent;
+  footer?: CardFooter | null;
   onMoveButton: (id: string, target: DropTarget) => void;
 }) {
   const ref = useButtonDrag(onMoveButton);
@@ -82,14 +89,14 @@ function PhonePreview({
     <div className={styles.phone}>
       <span className={styles.phoneNotch} aria-hidden="true" />
       <div ref={ref} className={`${styles.phoneScreen} ${styles.arrangeable}`}>
-        <DigitalCard content={content} preview />
+        <DigitalCard content={content} preview footer={footer} />
       </div>
     </div>
   );
 }
 
 /** A página pública como ela fica num computador, reduzida para a coluna. */
-function DesktopPreview({ content }: { content: CardContent }) {
+function DesktopPreview({ content, footer }: { content: CardContent; footer?: CardFooter | null }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.33);
 
@@ -113,7 +120,7 @@ function DesktopPreview({ content }: { content: CardContent }) {
       <div ref={viewportRef} className={styles.browserViewport}>
         <div style={{ width: DESKTOP_WIDTH, zoom: scale }}>
           <div className={cardStyles.page} style={{ backgroundColor: content.backgroundColor ?? "#ffffff" }}>
-            <DigitalCard content={content} preview />
+            <DigitalCard content={content} preview footer={footer} />
           </div>
         </div>
       </div>

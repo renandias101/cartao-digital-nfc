@@ -4,6 +4,7 @@ import { useActionState } from "react";
 
 import { changePasswordAction, type ChangePasswordState } from "@/app/painel/actions";
 import { IconLock } from "@/components/icons";
+import { DURACAO_LEGENDA, useTransientMessage } from "@/components/use-transient-message";
 
 const estadoInicial: ChangePasswordState = { ok: null };
 
@@ -13,6 +14,10 @@ const estadoInicial: ChangePasswordState = { ok: null };
  */
 export function ChangePasswordForm() {
   const [state, formAction, pending] = useActionState(changePasswordAction, estadoInicial);
+  const legenda = useTransientMessage(
+    state.ok === null ? null : state,
+    state.ok ? DURACAO_LEGENDA.sucesso : DURACAO_LEGENDA.erro,
+  );
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -74,12 +79,12 @@ export function ChangePasswordForm() {
         </div>
       </div>
 
-      {state.ok === false ? (
+      {legenda?.ok === false ? (
         <p role="alert" className="text-sm text-destructive">
-          {state.mensagem}
+          {legenda.mensagem}
         </p>
       ) : null}
-      {state.ok === true ? (
+      {legenda?.ok === true ? (
         <p role="status" className="text-sm text-success">
           Senha alterada com sucesso.
         </p>

@@ -5,12 +5,11 @@ import { redirect } from "next/navigation";
 
 import { removerTodasImagensDoCliente } from "@/lib/card/images";
 import { redefinirSenha } from "@/lib/admin/reset-password";
-import { salvarObservacoes } from "@/lib/admin/clients";
+import { atualizarNomeCliente, salvarObservacoes } from "@/lib/admin/clients";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type AcaoState = { ok: boolean | null; mensagem: string | null };
 
-const ESTADO_INICIAL: AcaoState = { ok: null, mensagem: null };
 
 /**
  * `renovarAction`/`cancelarAction`/`excluirAction` chamam a RPC pelo cliente
@@ -115,4 +114,17 @@ export async function salvarNotasAction(
   return { ok: true, mensagem: "Observações salvas." };
 }
 
-export { ESTADO_INICIAL };
+/** Corrige o nome do cliente. O nome de usuário (URL do cartão) não muda. */
+export async function salvarNomeAction(
+  clientId: string,
+  username: string,
+  _estadoAnterior: AcaoState,
+  formData: FormData,
+): Promise<AcaoState> {
+  const resultado = await atualizarNomeCliente(clientId, username, String(formData.get("full_name") ?? ""));
+  if (!resultado.ok) return { ok: false, mensagem: resultado.mensagem };
+  // Layout inteiro: o nome também aparece na lista e no suporte.
+  revalidatePath("/admin", "layout");
+  return { ok: true, mensagem: "Nome atualizado." };
+}
+

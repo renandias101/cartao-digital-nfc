@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ImageField } from "@/app/painel/editor/image-field";
-import { LIMITES_TEXTO } from "@/lib/constants";
+import { ContadorCaracteres } from "@/app/painel/editor/character-counter";
+import { LIMITES_TEXTO, contarCaracteres } from "@/lib/constants";
 import type { CardButton, ButtonType } from "@/lib/card/types";
-import { TIPOS_DE_BOTAO } from "@/lib/card/types";
+import { TIPOS_DE_BOTAO, TIPOS_PARA_CRIAR } from "@/lib/card/types";
 import { validarBotao } from "@/lib/card/buttons";
 import { IconPicker } from "@/app/painel/editor/icon-picker";
 import { checkSquareEligibility, isUploadedIcon } from "@/lib/card/presentation";
+import { DURACAO_LEGENDA, useTransientMessage } from "@/components/use-transient-message";
 
 const NOMES_TIPO: Record<ButtonType, string> = {
   link: "Link personalizado",
@@ -63,6 +65,7 @@ export function ButtonForm({
 }) {
   const [botao, setBotao] = useState<CardButton>(inicial);
   const [erro, setErro] = useState<string | null>(null);
+  const erroVisivel = useTransientMessage(erro, DURACAO_LEGENDA.erro);
   const formRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -105,7 +108,7 @@ export function ButtonForm({
           onChange={(e) => trocarTipo(e.target.value as ButtonType)}
           className="ui-input"
         >
-          {TIPOS_DE_BOTAO.map((t) => (
+          {(criando ? TIPOS_PARA_CRIAR : TIPOS_DE_BOTAO).map((t) => (
             <option key={t} value={t}>
               {NOMES_TIPO[t]}
             </option>
@@ -188,13 +191,21 @@ export function ButtonForm({
           <label htmlFor="conteudo-botao" className="ui-label">
             Conteúdo
           </label>
+          {/* Sem `maxLength`: o navegador conta emoji como 2 e travava a digitação
+              antes do limite. O contador avisa e o salvar recusa o excesso. */}
           <textarea
             id="conteudo-botao"
             value={botao.content}
             rows={4}
-            maxLength={LIMITES_TEXTO.textoInformativo}
+            aria-describedby="conteudo-botao-contador"
+            aria-invalid={contarCaracteres(botao.content) > LIMITES_TEXTO.textoInformativo || undefined}
             onChange={(e) => atualizar({ content: e.target.value })}
             className="ui-input"
+          />
+          <ContadorCaracteres
+            id="conteudo-botao-contador"
+            texto={botao.content}
+            limite={LIMITES_TEXTO.textoInformativo}
           />
         </div>
       )}
@@ -317,9 +328,9 @@ export function ButtonForm({
         buttonId={botao.id}
       />
 
-      {erro ? (
+      {erroVisivel ? (
         <p role="alert" className="text-sm text-destructive">
-          {erro}
+          {erroVisivel}
         </p>
       ) : null}
 

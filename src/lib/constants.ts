@@ -30,7 +30,21 @@ export const LIMITES_TEXTO = {
   tituloBotao: 40,
   descricaoBotao: 100,
   textoInformativo: 1000,
+  telefoneContato: 30,
 } as const;
+
+/** Telefone do "Salvar Contato": dígitos, espaço e + ( ) - . (vazio = sem número). Igual ao banco. */
+export const REGEX_TELEFONE_CONTATO = /^[0-9+() .-]{0,30}$/;
+
+/**
+ * Tamanho de um texto do jeito que o banco conta (`length()` do Postgres):
+ * um emoji é UM caractere. `string.length` e o `maxLength` do navegador
+ * contam unidades UTF-16 — emoji vale 2 — e travavam a digitação antes do
+ * limite real.
+ */
+export function contarCaracteres(texto: string): number {
+  return Array.from(texto).length;
+}
 
 /** Máximo de botões por cartão, ativos ou não (PRD §11). */
 export const MAX_BOTOES = 10;

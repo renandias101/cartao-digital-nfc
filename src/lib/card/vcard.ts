@@ -1,37 +1,37 @@
 import { botoesVisiveis } from "@/lib/card/buttons";
 import type { CardContent } from "@/lib/card/types";
 
+/**
+ * O "Salvar Contato" grava só nome e telefone na agenda do visitante: nada de
+ * profissão, descrição, endereço ou links (decisão do usuário, D70). O nome
+ * fica porque um contato sem nome não serve na agenda.
+ */
 export type ContactCardData = {
   name: string;
-  profession?: string;
-  description?: string;
   phones: string[];
-  addresses: string[];
-  urls: string[];
 };
 
+/** Sem nome ou sem telefone não há contato a salvar, e o botão não aparece. */
 export function getContactCardData(content: CardContent): ContactCardData | null {
   const name = content.displayName?.trim();
   if (!name) return null;
 
   const phones: string[] = [];
-  const addresses: string[] = [];
-  const urls: string[] = [];
+  // Mesmo número escrito de jeitos diferentes ("(96) 9…" e "+55 96 9…") entra uma vez só.
+  const digitos = (phone: string) => phone.replace(/\D/g, "").slice(-11);
+  const addPhone = (phone: string | undefined) => {
+    const value = phone?.trim();
+    if (value && /\d/.test(value) && !phones.some((p) => digitos(p) === digitos(value))) phones.push(value);
+  };
 
+  // O número escolhido para o "Salvar Contato" vem primeiro; botões de
+  // telefone antigos (tipo aposentado, D69) continuam valendo.
+  addPhone(content.contactPhone);
   for (const button of botoesVisiveis(content)) {
-    if (button.type === "phone") phones.push(button.number);
-    if (button.type === "address") addresses.push(button.address);
-    if (button.type === "link") urls.push(button.url);
+    if (button.type === "phone") addPhone(button.number);
   }
 
-  return {
-    name,
-    profession: content.profession?.trim() || undefined,
-    description: content.description?.trim() || undefined,
-    phones,
-    addresses,
-    urls,
-  };
+  return phones.length ? { name, phones } : null;
 }
 
 function escapeVCard(value: string): string {
@@ -51,11 +51,7 @@ export function buildVCard(contact: ContactCardData): string {
     `N:;${escapeVCard(contact.name)};;;`,
   ];
 
-  if (contact.profession) lines.push(`TITLE:${escapeVCard(contact.profession)}`);
-  if (contact.description) lines.push(`NOTE:${escapeVCard(contact.description)}`);
   for (const phone of contact.phones) lines.push(`TEL;TYPE=CELL:${escapeVCard(phone)}`);
-  for (const address of contact.addresses) lines.push(`ADR;TYPE=WORK:;;${escapeVCard(address)};;;;`);
-  for (const url of contact.urls) lines.push(`URL:${escapeVCard(url)}`);
   lines.push("END:VCARD");
 
   return `${lines.join("\r\n")}\r\n`;

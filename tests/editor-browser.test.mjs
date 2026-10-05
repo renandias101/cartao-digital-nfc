@@ -21,23 +21,28 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     stdin: { resolveDir: root, loader: "tsx", contents: `
       import {createRoot} from 'react-dom/client';
       import {CardEditor} from './src/app/painel/editor/card-editor';
+      import {SupportBubble} from './src/app/painel/support-bubble';
       import PublicPage from './src/app/[username]/page';
       import styles from './src/app/painel/editor/editor.module.css';
       Object.defineProperty(crypto, 'randomUUID', {value: undefined});
-      window.fixture = {failUpload: true, uploadCount: 0};
+      window.fixture = {failUpload: true, uploadCount: 0, footer: {title: 'Precisa de uma solução digital?',
+        subtitle: 'Sites, sistemas e cartões digitais para o seu negócio.', buttonLabel: 'Solicitar serviço',
+        url: 'https://wa.me/5596981233398'}};
       const root = createRoot(document.getElementById('root'));
       window.fixture.showPublic = async () => root.render(await PublicPage({params: Promise.resolve({username:'teste'})}));
       root.render(
         <main className={styles.page}><section className={styles.workspace}>
         <CardEditor isActive initialContent={{displayName: 'Teste', backgroundColor:'#edf2fa',
           buttonColor:'#2455ad', profilePhoto:'/test.png', buttons:[]}}/>
-        </section></main>);
+        </section><SupportBubble /></main>);
     ` },
     plugins: [{ name: "isolated-editor", setup(builder) {
       builder.onResolve({ filter: /^@\/app\/painel\/editor\/actions$/ }, () => ({ path: "actions", namespace: "fixture" }));
       builder.onResolve({ filter: /^next\/image$/ }, () => ({ path: "image", namespace: "fixture" }));
       builder.onResolve({ filter: /^@\/lib\/card\/public$/ }, () => ({ path: "public", namespace: "fixture" }));
       builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "fixture" }));
+      builder.onResolve({ filter: /^@\/lib\/system\/card-footer-server$/ }, () => ({ path: "footer", namespace: "fixture" }));
+      builder.onResolve({ filter: /^@\/app\/painel\/support-actions$/ }, () => ({ path: "support", namespace: "fixture" }));
       builder.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path }) => ({
         resolveDir: root, loader: "jsx", contents: path === "actions" ? `
           export async function salvarRascunhoAction(content) {
@@ -52,6 +57,11 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
           }
         ` : path === "public" ? `export async function getPublicCard(){return window.fixture.published;}
           export async function usernameExists(){return true;}`
+          : path === "footer" ? `export async function getCardFooter(){return window.fixture.footer ?? null;}`
+          : path === "support" ? `export async function enviarSuporteAction(_prev, form) {
+              window.fixture.support = Object.fromEntries(form);
+              return {ok:true, mensagem:'Recebemos sua mensagem. Vamos analisar e entrar em contato.'};
+            }`
           : path === "navigation" ? `export function notFound(){throw new Error('Not found');}`
           : `export default function Image({fill, priority, ...props}) {return <img {...props} style={fill ? {position:'absolute',width:'100%',height:'100%',inset:0} : props.style}/>;}`,
       }));
@@ -175,6 +185,28 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     assert.ok(avatarSize >= 144 && avatarSize <= 200, "Foto acompanha a largura da prévia");
     await evaluate("document.querySelector('aside').scrollIntoView({block:'nearest'})");
     await screenshot(`profession-preview-${width}.png`);
+    // Telefone do Salvar Contato: caracteres fora do formato nem entram.
+    await input("contactPhone", "(96) 99999-9999abc<");
+    await until("document.getElementById('contactPhone').value === '(96) 99999-9999'");
+    await evaluate("document.getElementById('contactPhone').scrollIntoView({block:'center'})");
+    await screenshot(`contact-phone-${width}.png`);
+    // Balão de suporte: no canto, sem cobrir a barra de ações; envia erro com os dois campos.
+    const balao = "document.querySelector('button[aria-label^=\"Ajuda e suporte\"]')";
+    await until(`(() => {const b=${balao}?.getBoundingClientRect(); const bar=document.querySelector('[data-editor-action-bar]').getBoundingClientRect();
+      return b && b.right <= innerWidth && b.bottom <= innerHeight && (b.bottom <= bar.top || b.left >= bar.right || b.right <= bar.left);})()`);
+    await evaluate(`${balao}.click()`);
+    await until("document.querySelector('dialog[open]')?.textContent.includes('Ajuda e suporte')");
+    await click("Reportar um erro");
+    await until("document.getElementById('suporte-erro') !== null");
+    await evaluate(`(() => {for (const [id, v] of [['suporte-mensagem','Trocar a foto'],['suporte-erro','Formato não suportado']]) {
+      const el=document.getElementById(id); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el,v);
+      el.dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+    await screenshot(`support-form-${width}.png`);
+    await click("Enviar");
+    await until("window.fixture.support?.errorText === 'Formato não suportado' && window.fixture.support.kind === 'error'");
+    await until("document.querySelector('dialog[open] [role=status]')?.textContent.includes('Recebemos sua mensagem')");
+    await evaluate("document.querySelector('dialog[open] [aria-label=\"Fechar\"]').click()");
+    await until("!document.querySelector('dialog[open]')");
     await input("profession", " ");
     await until("!document.querySelector('[data-card-profession]')");
     await input("profession", "Desenvolvedor Web");
@@ -199,6 +231,19 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     await click("Salvar rascunho");
     await until("window.fixture.saved?.buttons[1]?.title === 'Outro site'");
     assert.equal(await evaluate("window.fixture.saved.buttons[1].icon"), "/test.png?new=icon");
+    // Clicar e arrastar na lista do editor, com mouse de verdade e SEM esperar: o segundo item sobe para o topo.
+    await evaluate("document.querySelector('li[data-button-id]').scrollIntoView({block:'center'})");
+    const titulos = () => evaluate("[...document.querySelectorAll('li[data-button-id]')].map(li => li.textContent)");
+    assert.ok((await titulos())[0].includes("Site") && (await titulos())[1].includes("Outro site"));
+    const alvo = await evaluate(`(() => {const [a,b]=[...document.querySelectorAll('li[data-button-id]')].map(li=>li.getBoundingClientRect());
+      return {x:b.left+40, y:b.top+b.height/2, toY:a.top+4};})()`);
+    const mouse = (type, y, buttons = 1) => command("Input.dispatchMouseEvent",
+      { type, x: alvo.x, y, button: "left", buttons, clickCount: type === "mouseMoved" ? 0 : 1 });
+    await mouse("mouseMoved", alvo.y, 0);
+    await mouse("mousePressed", alvo.y);
+    for (let passo = 1; passo <= 6; passo++) await mouse("mouseMoved", alvo.y + (alvo.toY - alvo.y) * passo / 6);
+    await mouse("mouseReleased", alvo.toY, 0);
+    await until("document.querySelector('li[data-button-id]')?.textContent.includes('Outro site')");
     await evaluate("window.fixture.failUpload = true");
     await chooseImage("Foto de perfil");
     await until("document.querySelector('[role=alert]')?.textContent.includes('imagem anterior')");
@@ -216,6 +261,11 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     const count = await evaluate("window.fixture.uploadCount");
     await chooseImage("Foto de perfil", "image/svg+xml");
     await until("document.querySelector('[role=alert]')?.textContent.includes('Formato não suportado')");
+    if (width === 1440) {
+      // Legenda de erro é temporária: some sozinha depois de alguns segundos.
+      await new Promise((resolve) => setTimeout(resolve, 8300));
+      assert.equal(await evaluate("[...document.querySelectorAll('[role=alert]')].some(el => el.textContent.includes('Formato não suportado'))"), false);
+    }
     assert.equal(await evaluate("window.fixture.uploadCount"), count);
     await click("Excluir");
     // Excluir pede confirmação antes de tirar o botão do rascunho.
@@ -254,7 +304,7 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
       {id:'ig',type:'link',enabled:true,title:'Instagram',url:'https://instagram.com/exemplo'},
       {id:'li',type:'link',enabled:true,title:'LinkedIn',url:'https://linkedin.com/in/exemplo'},
       {id:'mail',type:'link',enabled:true,title:'E-mail',url:'https://mail.google.com/'},
-      {id:'text',type:'text',enabled:true,title:'Informações',content:'Texto completo',description:'Descrição do botão'},
+      {id:'text',type:'text',enabled:true,title:'Informações',content:'Texto completo\\n\\nSegundo bloco',description:'Descrição do botão'},
       {id:'wifi',type:'wifi',enabled:true,ssid:'Rede de teste',password:'senha-teste'},
       {id:'pix',type:'pix',enabled:true,key:'chave-teste'},
       {id:'phone',type:'phone',enabled:true,number:'123456'},
@@ -262,10 +312,25 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
       {id:'hidden',type:'link',enabled:false,title:'Oculto',url:'https://example.com'}
     ]}); window.fixture.showPublic()`);
     await until("document.querySelectorAll('[aria-label=\"Contato e redes sociais\"] a').length === 4");
-    await until("document.querySelectorAll('[data-digital-card] details').length === 5");
+    await until("document.querySelectorAll('[data-digital-card] details').length === 3");
     await evaluate("document.querySelectorAll('[data-digital-card] summary').forEach(el=>el.click())");
-    assert.equal(await evaluate("document.querySelectorAll('[data-digital-card] details[open]').length"), 5);
-    assert.equal(await evaluate("document.querySelectorAll('[data-digital-card] details button').length"), 3);
+    assert.equal(await evaluate("document.querySelectorAll('[data-digital-card] details[open]').length"), 3);
+    // Wi-Fi abre em modal, com a senha e o botão de copiar.
+    await evaluate("document.querySelector('[data-digital-card] button[data-button-id=\"wifi\"]').click()");
+    assert.ok(await evaluate("document.querySelector('[data-digital-card] dialog[open]')?.textContent.includes('Senha: senha-teste')"));
+    assert.ok(await evaluate("[...document.querySelectorAll('[data-digital-card] dialog[open] button')].some(b => b.textContent.includes('Copiar senha'))"));
+    await screenshot(`wifi-modal-${width}.png`);
+    await evaluate("document.querySelector('[data-digital-card] dialog[open] [aria-label=\"Fechar\"]').click()");
+    assert.equal(await evaluate("document.querySelector('[data-digital-card] dialog[open]')"), null);
+    // Texto abre em modal, não expande no meio dos botões.
+    await evaluate("document.querySelector('[data-digital-card] button[data-button-id=\"text\"]').click()");
+    assert.ok(await evaluate("document.querySelector('[data-digital-card] dialog[open]')?.textContent.includes('Texto completo')"));
+    // Quebras de linha e linha em branco do texto aparecem no modal.
+    assert.equal(await evaluate("[...document.querySelectorAll('[data-digital-card] dialog[open] p')].at(-1).innerText"), "Texto completo\n\nSegundo bloco");
+    await screenshot(`text-modal-${width}.png`);
+    await evaluate("document.querySelector('[data-digital-card] dialog[open] [aria-label=\"Fechar\"]').click()");
+    assert.equal(await evaluate("document.querySelector('[data-digital-card] dialog[open]')"), null);
+    assert.equal(await evaluate("document.querySelectorAll('[data-digital-card] details button').length"), 2);
     assert.equal(await evaluate("document.querySelector('[data-digital-card]').textContent.includes('Oculto')"), false);
     assert.ok(await evaluate("document.querySelector('[data-digital-card]').textContent.includes('Texto completo')"));
     assert.ok(await evaluate("document.querySelector('[data-digital-card]').textContent.includes('Salvar Contato')"));
@@ -273,6 +338,7 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     await screenshot(`social-public-${width}.png`);
     await evaluate(`Object.assign(window.fixture.published, {
       displayName:'Renan Dias', backgroundColor:'#0f0f0f', buttonColor:'#1c1c1c', professionColor:'#ffbf52',
+      contactPhone:'(96) 99999-9999',
       profilePhoto:undefined, backgroundImage:undefined, banner:'/images/modelo-apresentacao-banner-gold-v1.png',
       buttons:[...window.fixture.published.buttons.slice(0,4),
         {id:'services',type:'link',enabled:true,title:'Meus serviços',url:'https://example.com/servicos'},
@@ -289,6 +355,13 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
       };})()`);
     assert.deepEqual(palette, {surface:'rgb(28, 28, 28)',text:'rgb(255, 255, 255)',accent:'#ffbf52',cta:'rgb(0, 0, 0)'});
     assert.ok(await evaluate("document.documentElement.scrollWidth <= innerWidth"), "Modelo dourado sem overflow");
+    // Rodapé do sistema: último bloco do cartão, link http(s) em nova aba.
+    const rodape = await evaluate(`(() => {const f=document.querySelector('[data-digital-card] [data-card-footer]');
+      const a=f?.querySelector('a'); return f && {last: f === f.parentElement.lastElementChild, text: f.textContent,
+        href: a.getAttribute('href'), target: a.target, rel: a.rel, height: a.getBoundingClientRect().height};})()`);
+    assert.ok(rodape?.last && rodape.text.includes('Precisa de uma solução digital?') && rodape.text.includes('Solicitar serviço'));
+    assert.deepEqual([rodape.href, rodape.target, rodape.rel], ['https://wa.me/5596981233398', '_blank', 'noopener noreferrer']);
+    assert.ok(rodape.height >= 44, "Botão do rodapé com área de toque");
     await evaluate("window.scrollTo(0,0)");
     await screenshot(`reference-public-${width}.png`, true);
     await evaluate("window.fixture.published.professionColor='#3154ae'; window.fixture.showPublic()");

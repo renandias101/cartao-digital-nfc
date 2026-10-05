@@ -12,6 +12,7 @@ import type { DropTarget } from "@/app/painel/editor/use-button-drag";
 import { useDraftAutosave } from "@/app/painel/editor/use-draft-autosave";
 import { moveButtonToLayout } from "@/lib/card/presentation";
 import type { CardContent } from "@/lib/card/types";
+import type { CardFooter } from "@/lib/system/card-footer";
 import styles from "./editor.module.css";
 
 /**
@@ -28,11 +29,14 @@ export function CardEditor({
   isActive,
   hasUnpublishedChanges = false,
   passwordForm,
+  footer,
 }: {
   initialContent: CardContent;
   isActive: boolean;
   hasUnpublishedChanges?: boolean;
   passwordForm?: ReactNode;
+  /** Rodapé do sistema: só aparece na prévia, o cliente não edita. */
+  footer?: CardFooter | null;
 }) {
   const [content, setContent] = useState<CardContent>(initialContent);
   const [publicadoEm, setPublicadoEm] = useState<Date | null>(null);
@@ -153,7 +157,7 @@ export function CardEditor({
         />
       </div>
 
-      <PreviewPanel content={content} onMoveButton={moverParaModelo} />
+      <PreviewPanel content={content} footer={footer} onMoveButton={moverParaModelo} />
     </div>
   );
 }

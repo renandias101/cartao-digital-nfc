@@ -1,20 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import config from "../next.config";
 import { adicionarBotao, alternarAtivo, duplicarBotao, editarBotao, removerBotao, reordenarBotoes, validarBotoes } from "../src/lib/card/buttons";
 import { imageUploadPath, isImagePurpose, validateImageFile } from "../src/lib/card/image-upload";
-import type { CardContent } from "../src/lib/card/types";
+import { TIPOS_DE_BOTAO, TIPOS_PARA_CRIAR, type CardContent } from "../src/lib/card/types";
 import { UPLOAD_IMAGEM } from "../src/lib/constants";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CardProfession } from "../src/components/card-profession";
 import { validarConteudoCartao } from "../src/lib/card/validation";
-import { duplicarConteudoSemDadosPessoais } from "../src/lib/card/templates";
+import { CARD_TEMPLATES, duplicarConteudoSemDadosPessoais } from "../src/lib/card/templates";
 import { checkSquareEligibility, getAccentColor, getButtonLayouts, isSystemIconKey, moveButtonToLayout, organizeCardButtons, resolveButtonIcon } from "../src/lib/card/presentation";
 import { buildVCard, getContactCardData, getVCardFileName } from "../src/lib/card/vcard";
 import { ICON_CATALOG, ICON_CATEGORIES, searchIcons } from "../src/lib/card/icon-catalog";
 import { SYSTEM_ICON_COMPONENTS } from "../src/components/system-icons";
+import { RODAPE_PADRAO, validarRodape } from "../src/lib/system/card-footer";
+import { validarSuporte } from "../src/lib/support/support";
 
 test("cria e duplica botões mesmo sem randomUUID (HTTP na rede local)", () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis.crypto, "randomUUID");
@@ -120,7 +124,7 @@ test("organiza redes sociais no destaque sem esconder os demais botões", () => 
   assert.deepEqual(organized.regular.map(({ id }) => id), ["services"]);
 });
 
-test("vCard usa somente dados de botões visíveis e escapa o conteúdo", () => {
+test("vCard grava só nome e telefone, ignora botão desativado e escapa o conteúdo", () => {
   const content: CardContent = {
     displayName: "Renan, Dias",
     profession: "Desenvolvedor Web",
@@ -137,10 +141,99 @@ test("vCard usa somente dados de botões visíveis e escapa o conteúdo", () => 
   const vcard = buildVCard(contact);
   assert.match(vcard, /FN:Renan\\, Dias/);
   assert.match(vcard, /TEL;TYPE=CELL:\+55 96 99999-9999/);
-  assert.match(vcard, /ADR;TYPE=WORK:;;Rua A\\, 10/);
-  assert.match(vcard, /URL:https:\/\/example\.com/);
-  assert.ok(!vcard.includes("0000"));
+  for (const fora of ["TITLE:", "NOTE:", "ADR", "URL:", "Rua A", "example.com", "Desenvolvedor", "0000"]) {
+    assert.ok(!vcard.includes(fora), fora);
+  }
   assert.equal(getVCardFileName(contact.name), "renan-dias.vcf");
+  // Sem número não há contato a salvar: o botão não aparece.
+  assert.equal(getContactCardData({ ...content, buttons: content.buttons.slice(1) }), null);
+  assert.equal(getContactCardData({ buttons: [], contactPhone: "96 99999-0000" }), null);
+});
+
+test("telefone do Salvar Contato: vem primeiro no vCard, sem repetir, validado e fora da duplicação", () => {
+  const content: CardContent = {
+    displayName: "Renan Dias",
+    contactPhone: "(96) 99999-9999",
+    buttons: [
+      { id: "same", type: "phone", enabled: true, number: "+55 96 99999-9999" },
+      { id: "other", type: "phone", enabled: true, number: "(96) 3222-0000" },
+    ],
+  };
+  const contact = getContactCardData(content);
+  assert.deepEqual(contact?.phones, ["(96) 99999-9999", "(96) 3222-0000"]);
+  // Só o número do Salvar Contato, sem botão de telefone.
+  assert.deepEqual(getContactCardData({ displayName: "A", contactPhone: "96 99999-0000", buttons: [] })?.phones, ["96 99999-0000"]);
+  // Vazio ou sem dígito não vira telefone.
+  assert.equal(getContactCardData({ displayName: "A", contactPhone: " - ", buttons: [] }), null);
+  for (const valido of ["", "+55 (96) 99999-9999", "96.99999.9999"]) {
+    assert.equal(validarConteudoCartao({ buttons: [], contactPhone: valido }, false).valido, true, valido);
+  }
+  for (const invalido of ["abc", "96999\n99999", "1".repeat(31), "tel:96999999999", 96999999999 as unknown as string]) {
+    assert.equal(validarConteudoCartao({ buttons: [], contactPhone: invalido }, false).valido, false, String(invalido));
+  }
+  assert.equal(duplicarConteudoSemDadosPessoais(content).contactPhone, undefined);
+});
+
+test("tipo Telefone não é mais criado: some da criação, dos modelos e da duplicação, mas o antigo segue válido", () => {
+  assert.ok(!TIPOS_PARA_CRIAR.includes("phone"));
+  assert.ok(TIPOS_DE_BOTAO.includes("phone"));
+  for (const modelo of CARD_TEMPLATES) assert.ok(!modelo.buttonTypes.includes("phone"), modelo.id);
+  const antigo: CardContent = { buttons: [
+    { id: "p", type: "phone", enabled: true, number: "96999998888" },
+    { id: "a", type: "address", enabled: true, address: "Rua A" },
+  ] };
+  assert.deepEqual(duplicarConteudoSemDadosPessoais(antigo).buttons.map((b) => b.type), ["address"]);
+  assert.equal(validarBotoes(antigo.buttons).valido, true);
+});
+
+test('arquivos "use server" só exportam funções assíncronas (senão todas as ações da página quebram)', () => {
+  const arquivos = (readdirSync("src", { recursive: true }) as string[])
+    .filter((f) => /\.(ts|tsx)$/.test(f))
+    .map((f) => join("src", f))
+    .filter((f) => /^\s*["']use server["']/.test(readFileSync(f, "utf8")));
+  assert.ok(arquivos.length > 0);
+  for (const arquivo of arquivos) {
+    const proibidas = readFileSync(arquivo, "utf8")
+      .split("\n")
+      .filter((linha) => /^export\s+(const|let|var|class|enum|\{|default\s+(?!async))/.test(linha));
+    assert.deepEqual(proibidas, [], arquivo);
+  }
+});
+
+test("suporte: erro exige o que tentava fazer e o erro; ajuda exige só o pedido", () => {
+  const ok = validarSuporte({ kind: "error", message: "  Trocar a foto  ", errorText: " Formato não suportado " });
+  assert.ok(ok.valido && ok.pedido.message === "Trocar a foto" && ok.pedido.errorText === "Formato não suportado");
+  assert.equal(validarSuporte({ kind: "error", message: "Trocar a foto", errorText: "  " }).valido, false);
+  assert.equal(validarSuporte({ kind: "error", message: " ", errorText: "x" }).valido, false);
+  const ajuda = validarSuporte({ kind: "help", message: "Quero mudar o link", errorText: "ignorado" });
+  assert.ok(ajuda.valido && ajuda.pedido.errorText === undefined);
+  assert.equal(validarSuporte({ kind: "help", message: "📱".repeat(1000) }).valido, true);
+  assert.equal(validarSuporte({ kind: "help", message: "a".repeat(1001) }).valido, false);
+  assert.equal(validarSuporte({ kind: "outro" as "help", message: "x" }).valido, false);
+});
+
+test("limites de texto contam emoji como 1 caractere, igual ao banco", () => {
+  const texto = (content: string) => validarBotoes([{ id: "t", type: "text", enabled: true, title: "Catálogo", content }]);
+  // 990 letras + 10 emojis = 1000 caracteres: cabe, mesmo valendo 1010 para `string.length`.
+  assert.equal(texto("a".repeat(990) + "📱".repeat(10)).valido, true);
+  assert.equal(texto("a".repeat(991) + "📱".repeat(10)).valido, false);
+  assert.equal(validarConteudoCartao({ buttons: [], description: "😀".repeat(250) }, false).valido, true);
+  assert.equal(validarConteudoCartao({ buttons: [], description: "😀".repeat(251) }, false).valido, false);
+});
+
+test("rodapé do sistema: validação espelha o banco e só aceita link http(s)", () => {
+  const base = { enabled: true, ...RODAPE_PADRAO };
+  assert.equal(validarRodape(base).valido, true);
+  const limpo = validarRodape({ ...base, title: "  Título  " });
+  assert.ok(limpo.valido && limpo.rodape.title === "Título");
+  assert.equal(validarRodape({ ...base, subtitle: "" }).valido, true);
+  for (const invalido of [
+    { title: "" }, { title: "a".repeat(61) }, { subtitle: "a".repeat(121) }, { buttonLabel: " " },
+    { buttonLabel: "a".repeat(31) }, { url: "javascript:alert(1)" }, { url: "wa.me/559699" },
+    { url: "https://a.com/x y" }, { url: "data:text/html,oi" }, { url: `https://a.com/${"a".repeat(500)}` },
+  ]) {
+    assert.equal(validarRodape({ ...base, ...invalido }).valido, false, JSON.stringify(invalido).slice(0, 60));
+  }
 });
 
 test("cor de destaque é opcional, validada e copiada em modelos; nada fora de hex chega ao estilo", () => {
@@ -235,11 +328,15 @@ test("busca de ícones: sinônimos e acentos levam à mesma opção, sem repetir
   assert.deepEqual(only("cardapio"), ["menu"]);
   assert.deepEqual(only("CARDÁPIO"), ["menu"]);
   assert.deepEqual(only("agendar"), ["calendar"]);
-  assert.deepEqual(only("avaliacoes"), ["star"]);
+  assert.deepEqual(only("avaliacoes"), ["star", "google"]);
+  assert.deepEqual(only("google meu negócio"), ["google"]);
   assert.deepEqual(only("pix"), ["card"]);
   assert.deepEqual(only("twitter"), ["x"]);
   assert.deepEqual(only("zzzz"), []);
-  assert.equal(searchIcons("").length, ICON_CATALOG.length);
+  // Telefone saiu do seletor (o número fica no Salvar Contato), mas a chave salva continua desenhando.
+  assert.equal(searchIcons("").length, ICON_CATALOG.length - 1);
+  assert.deepEqual(only("telefone"), []);
+  assert.ok(isSystemIconKey("phone"));
   for (const query of ["", "site", "link", "a", "e", "rede", "mensagem"]) {
     const keys = only(query);
     assert.equal(new Set(keys).size, keys.length, `resultado repetido em "${query}"`);

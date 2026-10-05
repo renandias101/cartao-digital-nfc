@@ -127,6 +127,9 @@ async function principal() {
     "20260930190000_username_exists_cobre_cliente_excluido.sql",
     "20261003150000_card_profession.sql",
     "20261003190000_card_accent_color.sql",
+    "20261004120000_card_contact_phone.sql",
+    "20261004130000_card_footer.sql",
+    "20261004140000_support_requests.sql",
   ];
   for (const m of migracoes) {
     await db.exec(readFileSync(join(AQUI, "..", "migrations", m), "utf8"));
@@ -1629,7 +1632,10 @@ async function principal() {
       {professionColor: "#abc"}, {professionColor: "red"}, {professionColor: null},
       {professionColor: "url(https://example.com)"}, {accentColor: "#fab754"}, {accentColor: "#abc"},
       {accentColor: "red"}, {accentColor: null}, {accentColor: 7}, {accentColor: "#fab754; color: red"},
-      {accentColor: "url(https://example.com)"}].map(extra => ({
+      {accentColor: "url(https://example.com)"}, {contactPhone: ""}, {contactPhone: "+55 (96) 99999-9999"},
+      {contactPhone: "96.99999.9999"}, {contactPhone: "1".repeat(30)}, {contactPhone: "1".repeat(31)},
+      {contactPhone: "abc"}, {contactPhone: "96999\n99999"}, {contactPhone: "tel:96999999999"},
+      {contactPhone: null}, {contactPhone: 96999999999}].map(extra => ({
         buttons: [], displayName: "Teste", backgroundColor: "#000000", buttonColor: "#ffffff", ...extra,
       })),
     { buttons: [] },
@@ -1638,6 +1644,9 @@ async function principal() {
     { buttons: [], displayName: "a".repeat(61) },
     { buttons: [], description: "a".repeat(250) },
     { buttons: [], description: "a".repeat(251) },
+    { buttons: [], description: "😀".repeat(250) },
+    { buttons: [], description: "😀".repeat(251) },
+    { buttons: [], displayName: "😀".repeat(60) },
     { buttons: [], backgroundColor: "#fff" },
     { buttons: [], backgroundColor: "#a1b2c3" },
     { buttons: [], backgroundColor: "azul" },
@@ -1662,7 +1671,7 @@ async function principal() {
     for (const requireComplete of [false, true]) {
       const ts = validarConteudoCartao(caso, requireComplete).valido;
       const sql = await db
-        .query("select public.validate_card_content($1::jsonb, $2::boolean) and public.validate_card_profession($1::jsonb) and public.validate_card_accent_color($1::jsonb) as v", [
+        .query("select public.validate_card_content($1::jsonb, $2::boolean) and public.validate_card_profession($1::jsonb) and public.validate_card_accent_color($1::jsonb) and public.validate_card_contact_phone($1::jsonb) as v", [
           JSON.stringify(caso),
           requireComplete,
         ])
@@ -1837,6 +1846,11 @@ async function principal() {
     { id: "1", enabled: true, type: "address", address: "Rua X, 1" },
     { id: "1", enabled: true, type: "pix", key: "x", title: "a".repeat(40) },
     { id: "1", enabled: true, type: "pix", key: "x", title: "a".repeat(41) },
+    // Emoji conta como 1 caractere nos dois lados (o banco usa `length()`).
+    { id: "1", enabled: true, type: "text", title: "Catálogo", content: "📱".repeat(1000) },
+    { id: "1", enabled: true, type: "text", title: "Catálogo", content: "📱".repeat(1001) },
+    { id: "1", enabled: true, type: "text", title: "😀".repeat(40), content: "x" },
+    { id: "1", enabled: true, type: "link", title: "Site", description: "🔗".repeat(100), url: "https://a.com" },
   ];
 
   let divergenciasBotao = 0;
@@ -2250,10 +2264,10 @@ async function principal() {
     conteudoDuplicado.backgroundColor === "#123456" && conteudoDuplicado.buttonColor === "#654321",
   );
   verificar(
-    "duplicação preserva quantidade, tipo, ordem e enabled dos botões",
-    conteudoDuplicado.buttons.length === 4 &&
+    "duplicação preserva tipo, ordem e enabled dos botões (menos telefone, que não se cria mais)",
+    conteudoDuplicado.buttons.length === 3 &&
       conteudoDuplicado.buttons.map((b) => `${b.type}:${b.enabled}`).join(",") ===
-        "phone:true,pix:false,address:true,wifi:true",
+        "pix:false,address:true,wifi:true",
   );
   verificar(
     "duplicação NÃO tem displayName/description/profilePhoto/banner do original",
@@ -2389,6 +2403,94 @@ async function principal() {
     where client_id = '${CASE_CLIENTE}';
   `);
   verificar("banco aceita cor de destaque hexadecimal", validAccentColor.ok);
+  const invalidContactPhone = await comoPapel(db, "authenticated", CASE_CLIENTE, `
+    update public.card_drafts set content = content || '{"contactPhone":"<script>"}'::jsonb
+    where client_id = '${CASE_CLIENTE}';
+  `);
+  verificar("banco rejeita telefone do Salvar Contato fora do formato", !invalidContactPhone.ok);
+  const validContactPhone = await comoPapel(db, "authenticated", CASE_CLIENTE, `
+    update public.card_drafts set content = content || '{"contactPhone":"(96) 99999-9999"}'::jsonb
+    where client_id = '${CASE_CLIENTE}';
+  `);
+  verificar("banco aceita telefone do Salvar Contato válido", validContactPhone.ok);
+
+  // =========================================================================
+  secao("Rodapé do sistema nos cartões: só o administrador altera");
+  // =========================================================================
+  const rodapeAnon = await comoPapel(db, "anon", null, "select public.get_card_footer() as f");
+  verificar("anon lê o rodapé ativo pela função",
+    rodapeAnon.ok && rodapeAnon.resultado.rows[0].f?.buttonLabel === "Solicitar serviço");
+  const tabelaAnon = await comoPapel(db, "anon", null, "select * from public.card_footer_settings");
+  verificar("anon não lê a tabela do rodapé diretamente", !tabelaAnon.ok);
+  const tabelaCliente = await comoPapel(db, "authenticated", CLIENTE_A,
+    "select count(*)::int as n from public.card_footer_settings");
+  verificar("cliente não enxerga a linha do rodapé", tabelaCliente.ok && tabelaCliente.resultado.rows[0].n === 0);
+  await comoPapel(db, "authenticated", CLIENTE_A,
+    "update public.card_footer_settings set title = 'Invadido' where id");
+  const tituloDepoisCliente = await db.query("select title from public.card_footer_settings");
+  verificar("cliente não altera o rodapé", tituloDepoisCliente.rows[0].title === "Precisa de uma solução digital?");
+  const clienteInsere = await comoPapel(db, "authenticated", CLIENTE_A,
+    "insert into public.card_footer_settings (id, title, button_label, url) values (true, 'x', 'x', 'https://x.com')");
+  verificar("cliente não cria outro rodapé", !clienteInsere.ok);
+  const adminAltera = await comoPapel(db, "authenticated", ADMIN,
+    "update public.card_footer_settings set title = 'Novo título' where id returning id");
+  verificar("administrador altera o rodapé", adminAltera.ok && adminAltera.resultado.rows.length === 1);
+  const adminUrlRuim = await comoPapel(db, "authenticated", ADMIN,
+    "update public.card_footer_settings set url = 'javascript:alert(1)' where id");
+  verificar("banco recusa link do rodapé fora de http(s)", !adminUrlRuim.ok);
+  const segundaLinha = await comoPapel(db, "authenticated", ADMIN,
+    "insert into public.card_footer_settings (id, title, button_label, url) values (false, 'x', 'x', 'https://x.com')");
+  verificar("rodapé tem uma linha só", !segundaLinha.ok);
+  await comoPapelConfirmando(db, "authenticated", ADMIN, "update public.card_footer_settings set enabled = false where id");
+  const rodapeDesligado = await comoPapel(db, "anon", null, "select public.get_card_footer() as f");
+  verificar("rodapé desativado: a função não devolve nada",
+    rodapeDesligado.ok && rodapeDesligado.resultado.rows[0].f === null);
+  await comoPapelConfirmando(db, "authenticated", ADMIN, "update public.card_footer_settings set enabled = true where id");
+
+  // =========================================================================
+  secao("Suporte: cliente só envia em nome próprio; só o administrador lê");
+  // =========================================================================
+  // Clientes que ainda existem neste ponto da suíte (seções anteriores excluem outros).
+  const SUP_A = CASE_CLIENTE;
+  const SUP_B = "10000000-0000-4000-8000-000000000008";
+  const inserirSuporte = (clientId, extra = "") =>
+    `insert into public.support_requests (client_id, kind, message, error_text${extra ? ", status, resolved_at" : ""})
+     values ('${clientId}', 'error', 'Trocar a foto', 'Formato não suportado'${extra})`;
+  const envioProprio = await comoPapel(db, "authenticated", SUP_A, inserirSuporte(SUP_A));
+  verificar("cliente envia pedido em nome próprio", envioProprio.ok, envioProprio.erro);
+  verificar("cliente não envia em nome de outro cliente",
+    !(await comoPapel(db, "authenticated", SUP_A, inserirSuporte(SUP_B))).ok);
+  verificar("cliente não envia pedido já resolvido",
+    !(await comoPapel(db, "authenticated", SUP_A, inserirSuporte(SUP_A, ", 'resolved', now()"))).ok);
+  verificar("anon não envia pedido", !(await comoPapel(db, "anon", null, inserirSuporte(SUP_A))).ok);
+  verificar("erro sem a descrição do erro é recusado", !(await comoPapel(db, "authenticated", SUP_A,
+    `insert into public.support_requests (client_id, kind, message) values ('${SUP_A}', 'error', 'x')`)).ok);
+  verificar("pedido de ajuda com texto de erro é recusado", !(await comoPapel(db, "authenticated", SUP_A,
+    `insert into public.support_requests (client_id, kind, message, error_text) values ('${SUP_A}', 'help', 'x', 'y')`)).ok);
+  verificar("mensagem só com espaços é recusada", !(await comoPapel(db, "authenticated", SUP_A,
+    `insert into public.support_requests (client_id, kind, message) values ('${SUP_A}', 'help', '   ')`)).ok);
+
+  for (let i = 0; i < 5; i++) await comoPapelConfirmando(db, "authenticated", SUP_A, inserirSuporte(SUP_A));
+  verificar("sexto envio na mesma hora é recusado (limite de 5)",
+    !(await comoPapel(db, "authenticated", SUP_A, inserirSuporte(SUP_A))).ok);
+  verificar("o limite é por cliente: outro cliente ainda envia",
+    (await comoPapel(db, "authenticated", SUP_B, inserirSuporte(SUP_B))).ok);
+
+  const clienteLeSuporte = await comoPapel(db, "authenticated", SUP_A,
+    "select count(*)::int as n from public.support_requests");
+  verificar("cliente não lê pedidos (nem os próprios)", clienteLeSuporte.ok && clienteLeSuporte.resultado.rows[0].n === 0);
+  const adminLeSuporte = await comoPapel(db, "authenticated", ADMIN,
+    "select count(*)::int as n from public.support_requests");
+  verificar("administrador lê os pedidos", adminLeSuporte.ok && adminLeSuporte.resultado.rows[0].n === 5);
+  const clienteResolve = await comoPapel(db, "authenticated", SUP_A,
+    "update public.support_requests set status = 'resolved', resolved_at = now() returning id");
+  verificar("cliente não altera o status", clienteResolve.ok && clienteResolve.resultado.rows.length === 0);
+  const adminResolve = await comoPapel(db, "authenticated", ADMIN,
+    "update public.support_requests set status = 'resolved', resolved_at = now() returning id");
+  verificar("administrador marca como resolvido", adminResolve.ok && adminResolve.resultado.rows.length === 5);
+  verificar("resolvido sem data é recusado", !(await comoPapel(db, "authenticated", ADMIN,
+    "update public.support_requests set status = 'resolved'")).ok);
+  await db.exec("delete from public.support_requests");
 
   await db.close();
 

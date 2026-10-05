@@ -2,10 +2,18 @@ import Link from "next/link";
 
 import { redirect } from "next/navigation";
 
-import { IconSearch, IconUserPlus } from "@/components/icons";
+import { IconExternal, IconSearch, IconUserPlus } from "@/components/icons";
 import { StatusBadge } from "@/components/status-badge";
-import { listarClientes, type FiltroAdmin } from "@/lib/admin/clients";
+import {
+  listarClientes,
+  publicacoesDosClientes,
+  resumoClientes,
+  type ClienteComStatus,
+  type FiltroAdmin,
+} from "@/lib/admin/clients";
 import { getActor } from "@/lib/auth/session";
+import { urlPublicaDoCartao } from "@/lib/env";
+import { contarPedidosAbertos } from "@/lib/support/support-server";
 
 const FILTROS: { valor: FiltroAdmin; rotulo: string }[] = [
   { valor: "todos", rotulo: "Todos" },
@@ -20,6 +28,20 @@ const NOMES_STATUS: Record<string, string> = {
   expired: "Vencido",
   cancelled: "Cancelado",
 };
+
+function dataCurta(iso: string): string {
+  return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Belem" });
+}
+
+/** Vencimento com a distância em dias, para todos os status. */
+function vencimento(c: ClienteComStatus): { data: string; detalhe: string } {
+  const data = dataCurta(c.expires_at);
+  if (c.status === "cancelled") return { data, detalhe: c.cancelled_at ? `cancelado em ${dataCurta(c.cancelled_at)}` : "cancelado" };
+  const dias = c.days_until_expiry;
+  if (c.status === "expired") return { data, detalhe: `vencido há ${Math.abs(dias)} dia${Math.abs(dias) === 1 ? "" : "s"}` };
+  if (dias <= 0) return { data, detalhe: "vence hoje" };
+  return { data, detalhe: `em ${dias} dia${dias === 1 ? "" : "s"}` };
+}
 
 function montarQuery(base: Record<string, string>, sobrescrever: Record<string, string>) {
   const params = new URLSearchParams({ ...base, ...sobrescrever });
@@ -52,7 +74,22 @@ export default async function AdminPage(props: PageProps<"/admin">) {
   const busca = typeof sp.busca === "string" ? sp.busca : "";
   const pagina = Number(sp.pagina) || 1;
 
-  const { clientes, total, totalPaginas } = await listarClientes({ filtro, busca, pagina });
+  const [{ clientes, total, totalPaginas }, resumo, suporteAberto] = await Promise.all([
+    listarClientes({ filtro, busca, pagina }),
+    resumoClientes(),
+    contarPedidosAbertos(),
+  ]);
+  const publicacoes = await publicacoesDosClientes(clientes.map((c) => c.id));
+
+  const indicadores = resumo
+    ? [
+        { rotulo: "Ativos", valor: resumo.ativos, href: "/admin?filtro=ativos", destaque: false },
+        { rotulo: "Vencem em até 15 dias", valor: resumo.venceEm15Dias, href: "/admin?filtro=vence_em_15_dias", destaque: resumo.venceEm15Dias > 0 },
+        { rotulo: "Vencidos", valor: resumo.vencidos, href: "/admin?filtro=vencidos", destaque: resumo.vencidos > 0 },
+        { rotulo: "Cancelados", valor: resumo.cancelados, href: "/admin?filtro=cancelados", destaque: false },
+        { rotulo: "Suporte aberto", valor: suporteAberto, href: "/admin/suporte", destaque: suporteAberto > 0 },
+      ]
+    : [];
 
   const baseQuery = { filtro, busca, pagina: String(pagina) };
 
@@ -65,6 +102,24 @@ export default async function AdminPage(props: PageProps<"/admin">) {
           Novo cliente
         </Link>
       </header>
+
+      {indicadores.length ? (
+        <ul aria-label="Resumo" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {indicadores.map((item) => (
+            <li key={item.rotulo}>
+              <Link
+                href={item.href}
+                className={`ui-card flex h-full flex-col gap-1 p-4 transition-colors hover:bg-muted/60 ${
+                  item.destaque ? "border-gold/60" : ""
+                }`}
+              >
+                <span className="text-2xl font-semibold tabular-nums">{item.valor}</span>
+                <span className="text-xs text-muted-foreground">{item.rotulo}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       <div className="ui-card flex flex-col gap-4 p-4 sm:p-5">
         <nav aria-label="Filtrar clientes" className="flex flex-wrap gap-2 text-sm">
@@ -113,13 +168,15 @@ export default async function AdminPage(props: PageProps<"/admin">) {
       ) : (
         <div className="ui-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/60 text-left text-xs font-medium uppercase tracking-wide text-zinc-600">
                   <th scope="col" className="px-5 py-3">Nome</th>
                   <th scope="col" className="px-5 py-3">Usuário</th>
                   <th scope="col" className="px-5 py-3">Status</th>
                   <th scope="col" className="px-5 py-3">Vencimento</th>
+                  <th scope="col" className="px-5 py-3">Cartão</th>
+                  <th scope="col" className="px-5 py-3"><span className="sr-only">Abrir cartão</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -140,8 +197,33 @@ export default async function AdminPage(props: PageProps<"/admin">) {
                     <td className="px-5 py-3.5">
                       <StatusBadge status={c.status} label={NOMES_STATUS[c.status] ?? c.status} />
                     </td>
-                    <td className="px-5 py-3.5 text-muted-foreground">
-                      {c.status === "active" ? `${c.days_until_expiry} dia(s)` : "—"}
+                    <td className="px-5 py-3.5">
+                      {vencimento(c).data}
+                      <span className="block text-xs text-muted-foreground">{vencimento(c).detalhe}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {publicacoes.has(c.id) ? (
+                        <>
+                          Publicado
+                          <span className="block text-xs text-muted-foreground">
+                            em {dataCurta(publicacoes.get(c.id)!)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">Não publicado</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3.5 text-right">
+                      <a
+                        href={urlPublicaDoCartao(c.username)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Abrir o cartão de ${c.full_name} em nova aba`}
+                        title="Abrir cartão"
+                        className="ui-btn ui-btn-ghost ui-btn-icon"
+                      >
+                        <IconExternal />
+                      </a>
                     </td>
                   </tr>
                 ))}

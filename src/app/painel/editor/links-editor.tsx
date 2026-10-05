@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type Dispatch, type KeyboardEvent, type ReactNode, type SetStateAction } from "react";
+import { Fragment, useState, type Dispatch, type KeyboardEvent, type ReactNode, type SetStateAction } from "react";
 
 import { ButtonIcon } from "@/app/[username]/button-view";
 import { AnchoredPopover, closeEnclosingPopover } from "@/app/painel/editor/anchored-popover";
@@ -11,6 +11,7 @@ import { useButtonDrag, type DropTarget } from "@/app/painel/editor/use-button-d
 import {
   IconChevronDown,
   IconChevronUp,
+  IconContact,
   IconCopy,
   IconDots,
   IconEdit,
@@ -26,7 +27,7 @@ import { createButtonId } from "@/lib/card/button-id";
 import { alternarAtivo, duplicarBotao, inserirBotaoComId, removerBotao } from "@/lib/card/buttons";
 import { getButtonLayouts, getFeaturedLinkKind, resolveButtonIcon, type ButtonLayout } from "@/lib/card/presentation";
 import type { CardButton, CardContent } from "@/lib/card/types";
-import { MAX_BOTOES } from "@/lib/constants";
+import { LIMITES_TEXTO, MAX_BOTOES } from "@/lib/constants";
 import styles from "./editor.module.css";
 
 const NOMES_TIPO: Record<CardButton["type"], string> = {
@@ -141,57 +142,63 @@ export function LinksEditor({
         </p>
       ) : null}
 
+      {total === 0 ? <ContactPhoneBlock content={content} setContent={setContent} /> : null}
+
       {total > 0 ? (
         <div ref={listaRef} className={`${styles.arrangeable} flex flex-col gap-3`}>
           {(["square", "row"] as const).map((layout) => (
-            <div key={layout} data-button-zone={layout} className={styles.buttonZone}>
-              <div className={styles.groupHeader}>
-                <span className={styles.groupIcon} aria-hidden="true">
-                  {layout === "square" ? <IconShare /> : <IconLayers />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold">{GRUPOS[layout].titulo}</h3>
-                  <p className="text-xs text-muted-foreground">{GRUPOS[layout].descricao}</p>
+            <Fragment key={layout}>
+              {/* Mesma ordem do cartão: redes, Salvar Contato, links. */}
+              {layout === "row" ? <ContactPhoneBlock content={content} setContent={setContent} /> : null}
+              <div data-button-zone={layout} className={styles.buttonZone}>
+                <div className={styles.groupHeader}>
+                  <span className={styles.groupIcon} aria-hidden="true">
+                    {layout === "square" ? <IconShare /> : <IconLayers />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-semibold">{GRUPOS[layout].titulo}</h3>
+                    <p className="text-xs text-muted-foreground">{GRUPOS[layout].descricao}</p>
+                  </div>
+                  <span className={styles.dragHint}>
+                    <IconMove />
+                    Arraste para reorganizar
+                  </span>
                 </div>
-                <span className={styles.dragHint}>
-                  <IconMove />
-                  Arraste para reorganizar
-                </span>
+                {porGrupo[layout].length === 0 ? <p className={styles.emptyZone}>{GRUPOS[layout].vazio}</p> : null}
+                <ul className="flex flex-col gap-1.5">
+                  {porGrupo[layout].map((botao, indice, grupo) => (
+                    <LinkRow
+                      key={botao.id}
+                      botao={botao}
+                      layout={layout}
+                      primeiro={indice === 0}
+                      ultimo={indice === grupo.length - 1}
+                      podeDuplicar={!cheio}
+                      aoAlternar={() => setContent((c) => alternarAtivo(c, botao.id))}
+                      aoEditar={() => setFormulario({ inicial: botao, criando: false })}
+                      aoDuplicar={() =>
+                        setContent((c) => {
+                          try {
+                            return duplicarBotao(c, botao.id);
+                          } catch {
+                            return c;
+                          }
+                        })
+                      }
+                      aoMover={(direcao) => moverNoGrupo(botao.id, direcao)}
+                      aoTrocarGrupo={() =>
+                        onMoveButton(botao.id, { layout: layout === "square" ? "row" : "square", beforeId: null })
+                      }
+                      aoExcluir={() => setExcluindo(botao)}
+                    />
+                  ))}
+                </ul>
               </div>
-              {porGrupo[layout].length === 0 ? <p className={styles.emptyZone}>{GRUPOS[layout].vazio}</p> : null}
-              <ul className="flex flex-col gap-1.5">
-                {porGrupo[layout].map((botao, indice, grupo) => (
-                  <LinkRow
-                    key={botao.id}
-                    botao={botao}
-                    layout={layout}
-                    primeiro={indice === 0}
-                    ultimo={indice === grupo.length - 1}
-                    podeDuplicar={!cheio}
-                    aoAlternar={() => setContent((c) => alternarAtivo(c, botao.id))}
-                    aoEditar={() => setFormulario({ inicial: botao, criando: false })}
-                    aoDuplicar={() =>
-                      setContent((c) => {
-                        try {
-                          return duplicarBotao(c, botao.id);
-                        } catch {
-                          return c;
-                        }
-                      })
-                    }
-                    aoMover={(direcao) => moverNoGrupo(botao.id, direcao)}
-                    aoTrocarGrupo={() =>
-                      onMoveButton(botao.id, { layout: layout === "square" ? "row" : "square", beforeId: null })
-                    }
-                    aoExcluir={() => setExcluindo(botao)}
-                  />
-                ))}
-              </ul>
-            </div>
+            </Fragment>
           ))}
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Segure um item — aqui ou na pré-visualização — e arraste para mudar a ordem ou passar de um grupo para o
-            outro.
+            Arraste um item — aqui ou na pré-visualização — para mudar a ordem ou passar de um grupo para o outro.
+            No celular, segure o item por um instante antes de arrastar.
           </p>
         </div>
       ) : null}
@@ -369,4 +376,50 @@ function navegarMenu(event: KeyboardEvent<HTMLDivElement>) {
   if (proximo === null) return;
   event.preventDefault();
   itens[proximo]?.focus();
+}
+
+/**
+ * Número que o "Salvar Contato" grava no celular de quem visita. Fica aqui,
+ * entre os dois grupos, porque é onde o botão aparece no cartão. Caracteres
+ * fora do formato nem entram, então o salvamento automático nunca falha.
+ */
+function ContactPhoneBlock({
+  content,
+  setContent,
+}: {
+  content: CardContent;
+  setContent: Dispatch<SetStateAction<CardContent>>;
+}) {
+  return (
+    <div className={styles.buttonZone}>
+      <div className={styles.groupHeader}>
+        <span className={styles.groupIcon} aria-hidden="true">
+          <IconContact />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">
+            <label htmlFor="contactPhone">Telefone do “Salvar Contato”</label>
+          </h3>
+          <p id="contactPhoneHint" className="text-xs text-muted-foreground">
+            Número gravado na agenda de quem toca em “Salvar Contato”.
+          </p>
+        </div>
+      </div>
+      <input
+        id="contactPhone"
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        placeholder="(00) 00000-0000"
+        aria-describedby="contactPhoneHint"
+        value={content.contactPhone ?? ""}
+        maxLength={LIMITES_TEXTO.telefoneContato}
+        onChange={(e) => {
+          const valor = e.target.value.replace(/[^0-9+() .-]/g, "").slice(0, LIMITES_TEXTO.telefoneContato);
+          setContent((c) => ({ ...c, contactPhone: valor || undefined }));
+        }}
+        className="ui-input"
+      />
+    </div>
+  );
 }

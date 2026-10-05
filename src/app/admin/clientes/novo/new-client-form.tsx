@@ -6,6 +6,7 @@ import { useActionState, useState } from "react";
 import { criarClienteAction, type CriarClienteState } from "@/app/admin/clientes/novo/actions";
 import { IconArrowLeft } from "@/components/icons";
 import { CARD_TEMPLATES } from "@/lib/card/templates";
+import { DURACAO_LEGENDA, useTransientMessage } from "@/components/use-transient-message";
 
 const estadoInicial: CriarClienteState = { error: null };
 
@@ -14,6 +15,7 @@ type Origem = "zero" | "modelo" | "duplicar";
 /** Cadastro de cliente (PRD §60, §54, §55). */
 export function NewClientForm() {
   const [state, formAction, pending] = useActionState(criarClienteAction, estadoInicial);
+  const erro = useTransientMessage(state.error ? state : null, DURACAO_LEGENDA.erro)?.error;
   const [origem, setOrigem] = useState<Origem>("zero");
 
   return (
@@ -168,9 +170,9 @@ export function NewClientForm() {
           ) : null}
         </fieldset>
 
-        {state.error ? (
+        {erro ? (
           <p role="alert" className="text-sm text-destructive">
-            {state.error}
+            {erro}
           </p>
         ) : null}
 

@@ -1,4 +1,4 @@
-import { LIMITES_TEXTO } from "@/lib/constants";
+import { LIMITES_TEXTO, REGEX_TELEFONE_CONTATO, contarCaracteres } from "@/lib/constants";
 import type { CardContent } from "@/lib/card/types";
 
 /**
@@ -33,14 +33,21 @@ export function validarConteudoCartao(
       (typeof content.accentColor !== "string" || !REGEX_COR_HEX.test(content.accentColor))) {
     return { valido: false, mensagem: "Cor de destaque inválida. Use uma cor hexadecimal." };
   }
+  if (content.contactPhone !== undefined &&
+      (typeof content.contactPhone !== "string" || !REGEX_TELEFONE_CONTATO.test(content.contactPhone))) {
+    return {
+      valido: false,
+      mensagem: `Telefone do Salvar Contato: use só números, espaço e + ( ) -, até ${LIMITES_TEXTO.telefoneContato} caracteres.`,
+    };
+  }
 
   if (requireComplete && !displayName) {
     return { valido: false, mensagem: "Informe o nome exibido no cartão." };
   }
-  if (displayName !== undefined && displayName.length > LIMITES_TEXTO.nomeExibido) {
+  if (displayName !== undefined && contarCaracteres(displayName) > LIMITES_TEXTO.nomeExibido) {
     return { valido: false, mensagem: `Nome exibido: máximo de ${LIMITES_TEXTO.nomeExibido} caracteres.` };
   }
-  if (description !== undefined && description.length > LIMITES_TEXTO.descricaoPrincipal) {
+  if (description !== undefined && contarCaracteres(description) > LIMITES_TEXTO.descricaoPrincipal) {
     return { valido: false, mensagem: `Descrição: máximo de ${LIMITES_TEXTO.descricaoPrincipal} caracteres.` };
   }
   if (requireComplete && !backgroundColor) {

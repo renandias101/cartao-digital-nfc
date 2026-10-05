@@ -181,3 +181,70 @@ export async function historicoDoCliente(username: string) {
   }
   return data ?? [];
 }
+
+export type ResumoClientes = {
+  ativos: number;
+  venceEm15Dias: number;
+  vencidos: number;
+  cancelados: number;
+};
+
+/** Números do topo do painel: mesmos critérios dos filtros da lista. */
+export async function resumoClientes(): Promise<ResumoClientes | null> {
+  const supabase = await createSupabaseServerClient();
+  const contar = () => supabase.from("clients_with_status").select("id", { count: "exact", head: true });
+  const [ativos, vencendo, vencidos, cancelados] = await Promise.all([
+    contar().eq("status", "active"),
+    contar().eq("status", "active").lte("days_until_expiry", 15),
+    contar().eq("status", "expired"),
+    contar().eq("status", "cancelled"),
+  ]);
+  if (ativos.error || vencendo.error || vencidos.error || cancelados.error) return null;
+  return {
+    ativos: ativos.count ?? 0,
+    venceEm15Dias: vencendo.count ?? 0,
+    vencidos: vencidos.count ?? 0,
+    cancelados: cancelados.count ?? 0,
+  };
+}
+
+/** Data da última publicação de cada cliente da página (sem linha = nunca publicou). */
+export async function publicacoesDosClientes(ids: string[]): Promise<Map<string, string>> {
+  if (!ids.length) return new Map();
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.from("card_published").select("client_id, published_at").in("client_id", ids);
+  return new Map((data ?? []).map((linha) => [linha.client_id as string, linha.published_at as string]));
+}
+
+/**
+ * Corrige o nome do cliente (o nome interno, usado no painel). O nome de
+ * usuário — e com ele a URL do NFC — nunca muda por aqui (regra 1). A
+ * política `clients_update_admin` garante que só o administrador altera.
+ */
+export async function atualizarNomeCliente(
+  clientId: string,
+  username: string,
+  fullName: string,
+): Promise<{ ok: true } | { ok: false; mensagem: string }> {
+  const nome = fullName.trim();
+  if (nome.length < 2 || nome.length > 120) {
+    return { ok: false, mensagem: "Informe um nome de 2 a 120 caracteres." };
+  }
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("clients")
+    .update({ full_name: nome })
+    .eq("id", clientId)
+    .select("id");
+  if (error || !data?.length) {
+    return { ok: false, mensagem: "Não foi possível salvar o nome. Tente novamente." };
+  }
+  await supabase.from("admin_audit_log").insert({
+    action: "client_updated",
+    client_id: clientId,
+    client_username: username,
+    client_full_name: nome,
+    detail: { campo: "full_name" },
+  });
+  return { ok: true };
+}

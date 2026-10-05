@@ -1125,3 +1125,113 @@ banco. Isto é configuração de infraestrutura do projeto Supabase (backups
 automáticos/PITR), não algo que se implemente em `src/` ou em migration —
 fica como item de checklist para o usuário confirmar no painel do Supabase
 antes do deploy (etapa 17), não uma pendência de desenvolvimento.
+
+## D69 — Tipo de botão "Telefone" aposentado; número vai para o "Salvar Contato"
+
+**Data:** 04/10/2026 · **Etapa:** ajustes pós-etapa 16
+
+**Conflito com o PRD, decidido pelo usuário:** o PRD §13.5 define
+"Telefone" como um dos 6 tipos de botão. O usuário decidiu removê-lo, por
+ser redundante com o botão "Salvar Contato", que passou a ter um número
+próprio. Pela hierarquia do projeto (instrução do usuário acima do PRD), a
+decisão vale; o PRD não foi alterado e continua listando o tipo.
+
+O que mudou:
+
+1. **Campo novo `contactPhone`** no conteúdo do cartão: o número que o
+   "Salvar Contato" grava no vCard, editado no bloco "Links do cartão"
+   (entre "Redes e contatos" e "Links principais", a mesma posição do botão
+   no cartão). Aceita só dígitos, espaço e `+ ( ) - .`, até 30 caracteres;
+   vazio vale como ausente, para o salvamento automático não falhar
+   enquanto o número é digitado. Validado no servidor
+   (`validarConteudoCartao`) e no banco (migration `20261004120000`,
+   `validate_card_contact_phone`), com teste de paridade TS × SQL. No vCard
+   vem primeiro; o mesmo número escrito de outro jeito não se repete. É dado
+   pessoal: a duplicação de cartão não o copia (§55).
+2. **Tipo "Telefone" sai da criação** (`TIPOS_PARA_CRIAR`), dos modelos
+   prontos ("Clássico": link, texto, endereço; "Colorido": link, texto,
+   Wi-Fi) e da duplicação de cartão.
+3. **Ícone "Telefone" sai do seletor** (`retired` no catálogo de ícones).
+
+**Compatibilidade, sem apagar dados:** o tipo continua aceito pelo banco
+(`validate_button`) e pelo app (`TIPOS_DE_BOTAO`); botões de telefone já
+salvos continuam no cartão, editáveis, e o número deles ainda entra no
+vCard. A chave de ícone `phone` continua desenhando para quem já a usa.
+Converter os botões antigos em `contactPhone` e removê-los fica como
+opção, só com autorização, porque altera dados de clientes.
+
+**Pendência de banco:** ao preparar a aplicação da migration
+`20261004120000_card_contact_phone.sql`, verificou-se no projeto Supabase
+que `20261003150000_card_profession.sql` e
+`20261003190000_card_accent_color.sql` também não estão aplicadas (as
+constraints não existem). Até serem aplicadas, essas três regras valem só
+no servidor do app, não no banco.
+
+## D70 — "Salvar Contato" grava só nome e telefone
+
+**Data:** 04/10/2026 · **Etapa:** ajustes pós-etapa 16
+
+Decisão do usuário: o objetivo do botão é salvar o número de telefone na
+agenda do visitante. O vCard deixou de levar profissão (`TITLE`),
+descrição (`NOTE`), endereços (`ADR`) e links (`URL`); fica só o nome
+(`FN`/`N`, sem ele o contato não serve na agenda) e o telefone (`TEL`) —
+o `contactPhone` primeiro e, depois, botões de telefone antigos (D69).
+
+Consequência: sem nome **ou** sem telefone, `getContactCardData` devolve
+`null` e o botão "Salvar Contato" não aparece no cartão nem na prévia.
+Antes ele aparecia sempre que havia nome, mesmo sem número.
+
+## D71 — Rodapé do sistema em todos os cartões, editado só pelo administrador
+
+**Data:** 04/10/2026 · **Etapa:** ajustes pós-etapa 16
+
+Pedido do usuário: um bloco "Precisa de uma solução digital? / Solicitar
+serviço" no fim de todos os cartões, que o cliente não altera nem remove,
+com um espaço no painel do administrador para ajustá-lo.
+
+- **Fora do conteúdo do cartão.** O cliente grava o JSON do cartão; por
+  isso o rodapé mora numa tabela própria, `card_footer_settings`, de uma
+  linha só (chave `boolean` que só aceita `true`). Migration
+  `20261004130000_card_footer.sql`.
+- **Acesso no mesmo modelo do schema:** anon e cliente não têm privilégio
+  na tabela; leem por `get_card_footer()` (`security definer`), que devolve
+  só os campos exibidos, e nada quando o rodapé está desativado. Só o
+  administrador lê e altera a linha (políticas com `private.is_admin()`).
+  `check` no banco: título 1–60, subtítulo até 120, texto do botão 1–30,
+  link só `http(s)` até 500 — espelhados em `validarRodape`.
+- **Só no cartão ativo.** É lido depois de `getPublicCard` confirmar o
+  cartão; a página neutra (vencido/cancelado) não mostra nada (regra 4).
+  Aparece também na prévia do editor, para o cliente saber que existe.
+- **Falha de leitura mantém o texto padrão** (`RODAPE_PADRAO`, igual ao
+  semeado na migration), para o rodapé não sumir por um erro passageiro.
+- **Painel:** `/admin/rodape` ("Rodapé dos cartões" no menu), com
+  ativar/desativar, título, subtítulo, texto e link do botão, e amostra.
+- **Destino padrão:** WhatsApp do administrador (`wa.me/5596981233398`,
+  o mesmo número de renovação), alterável no painel.
+
+Pendência: a migration ainda não foi aplicada no Supabase (ver D69).
+*(Resolvida em 04/10/2026: as migrations de 03/10 e 04/10 foram aplicadas.)*
+
+## D72 — Balão de suporte no editor, com pedidos no painel do administrador
+
+**Data:** 04/10/2026 · **Etapa:** ajustes pós-etapa 16
+
+Pedido do usuário: um balão no canto do editor para o cliente reportar um
+erro (o que tentava fazer + qual erro deu) ou pedir ajuda (o que quer).
+Destino escolhido pelo usuário: ficar salvo no sistema e aparecer no painel
+do administrador (alternativas descartadas: só WhatsApp; os dois).
+
+- Tabela `support_requests` (migration `20261004140000`). O cliente só
+  **insere**, e só em nome próprio (`client_id = auth.uid()` na política;
+  o id vem da sessão, nunca do navegador). Não lê nem altera nada, nem os
+  próprios pedidos. O administrador lê e muda o status (aberto/resolvido).
+- `check` no banco: tipo `error`/`help`; textos de 1 a 1000 caracteres
+  (sem aceitar só espaços); texto do erro obrigatório no erro e proibido na
+  ajuda; `resolved_at` só (e sempre) quando resolvido.
+- Limite de 5 envios por cliente por hora, na própria política de insert,
+  contado por `private.support_requests_last_hour` (`security definer`,
+  porque o cliente não enxerga as próprias linhas).
+- Balão fixo no canto inferior direito do editor; no celular sobe para
+  ficar acima da barra "Publicar alterações". Formulário em `<dialog>`.
+- Painel: `/admin/suporte` ("Suporte" no menu), abas Abertos/Resolvidos,
+  link para o cliente, texto exibido como texto puro.

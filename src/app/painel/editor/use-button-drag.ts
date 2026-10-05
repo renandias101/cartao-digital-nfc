@@ -4,9 +4,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ButtonLayout } from "@/lib/card/presentation";
 
-/** Tempo segurando antes de o botão "soltar" e começar a arrastar. */
+/** Toque: tempo segurando antes de o botão "soltar" e começar a arrastar. */
 const HOLD_MS = 350;
-/** Mover mais que isto antes do tempo é rolagem ou clique, não arrastar. */
+/**
+ * Mover mais que isto antes do tempo: no toque é rolagem (cancela); no mouse
+ * já é arrastar. Abaixo disso, continua sendo clique.
+ */
 const MOVE_TOLERANCE = 8;
 const EDGE_SCROLL = 56;
 
@@ -41,9 +44,9 @@ function findDropTarget(root: HTMLElement, draggingId: string, x: number, y: num
 }
 
 /**
- * Segurar um botão (`[data-button-id]`) dentro do elemento que recebe o `ref`
- * devolvido e arrastar entre
- * as áreas `[data-button-zone]`. Funciona com mouse e toque; enquanto
+ * Arrastar um botão (`[data-button-id]`) dentro do elemento que recebe o `ref`
+ * devolvido entre as áreas `[data-button-zone]`. Mouse: clicar e arrastar.
+ * Toque: segurar um instante e arrastar (senão é rolagem). Enquanto
  * arrasta, a página não rola e o toque não abre o link. `onMove` é chamado
  * só quando o destino muda — o cartão se reorganiza ao vivo.
  */
@@ -94,10 +97,22 @@ export function useButtonDrag(
       if (dragging) event.preventDefault();
     }
 
+    function startDragging() {
+      window.clearTimeout(holdTimer);
+      dragging = true;
+      setDraggingId(id);
+    }
+
     function onPointerMove(event: PointerEvent) {
       if (!dragging) {
-        if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > MOVE_TOLERANCE) finish();
-        return;
+        if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) <= MOVE_TOLERANCE) return;
+        // Mouse: clicar e arrastar já move, como em qualquer lista no computador.
+        // Toque: mexer antes do tempo é rolagem da página, não arrastar.
+        if (event.pointerType !== "mouse") {
+          finish();
+          return;
+        }
+        startDragging();
       }
       event.preventDefault();
       if (event.clientY < EDGE_SCROLL) window.scrollBy(0, -12);
@@ -122,13 +137,13 @@ export function useButtonDrag(
       const item = target.closest<HTMLElement>("[data-button-id]");
       if (!item || !root?.contains(item)) return;
       const control = target.closest("button, input, select, textarea");
-      if (control && item.contains(control)) return;
+      // Controles internos (copiar, fechar) não arrastam; o próprio botão-item sim.
+      if (control && control !== item && item.contains(control)) return;
       id = item.dataset.buttonId ?? null;
       start = { x: event.clientX, y: event.clientY };
       lastKey = "";
       holdTimer = window.setTimeout(() => {
-        dragging = true;
-        setDraggingId(id);
+        startDragging();
         navigator.vibrate?.(15);
       }, HOLD_MS);
       window.addEventListener("pointermove", onPointerMove);
