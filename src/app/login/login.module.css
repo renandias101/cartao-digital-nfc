@@ -117,6 +117,7 @@
   /* Em telas mais altas que 3:2, centraliza a composição em vez de deixar faixa vazia embaixo. */
   :global(body):has(> .page) { min-height: 100svh; display: grid; align-content: center; background: #f4eee7; }
   .page {
+    position: relative;
     container-type: inline-size;
     width: min(100%, 150svh);
     min-height: 0;
@@ -124,10 +125,16 @@
     margin-inline: auto;
     grid-template-columns: 60% minmax(0, 40%);
   }
-  .artwork { display: block; position: relative; overflow: hidden; min-height: 0; }
-  .artworkImage { position: absolute; inset: 0 auto 0 0; width: 166.6667%; }
+  .artwork { display: block; position: absolute; inset: 0; overflow: hidden; min-height: 0; }
+  .artworkImage { position: absolute; inset: 0; }
   .artworkImage img { object-fit: cover; object-position: left center; }
-  .formArea { padding: 5.9259cqw 3.7109cqw 6.7708cqw .1302cqw; }
+  .formArea {
+    position: relative;
+    z-index: 1;
+    grid-column: 2;
+    padding: 5.9259cqw 3.7109cqw 6.7708cqw .1302cqw;
+    background: transparent;
+  }
   .card { max-width: none; padding: 3.125cqw 3.3854cqw 3.3203cqw 4.2318cqw; border-radius: 1.5625cqw; }
   .brand { gap: .78125cqw; margin-left: -.8464cqw; }
   .brandIcon { width: 5.0781cqw; height: 4.9479cqw; border-width: 4px; border-radius: 1.0417cqw; }
