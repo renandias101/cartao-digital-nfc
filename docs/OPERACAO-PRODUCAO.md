@@ -15,6 +15,12 @@ Antes de aplicar migrations, gere e verifique um backup restaurável do Postgres
 - Testar URL atual e dois aliases antigos, login pelo nome atual e recusa do alias no login.
 - Testar imagem de quase 5 MB, interrupção e repetição do envio, rascunho anônimo, publicação e revogação após cancelamento.
 - Conferir proteção contra senhas vazadas no Supabase Auth e a política de sessão/MFA administrativa.
+
+## Recuperação da senha do administrador
+
+O fluxo público de “Esqueci a senha” cria pedidos somente para clientes ativos; ele não redefine contas administrativas. Se um administrador perder o acesso, outro administrador ativo deve redefinir sua senha pelo provedor de autenticação. Quando não houver outro administrador ativo, o responsável autorizado pelo projeto deve abrir **Supabase Dashboard → Authentication → Users**, localizar a conta administrativa pelo e-mail sintético já cadastrado e definir uma nova senha. Não criar outro usuário, não alterar o `id` da conta e não remover sua linha em `private.admins`, pois esses dados preservam identidade, permissões e histórico.
+
+Depois da recuperação, entrar pelo nome de usuário administrativo atual e confirmar o acesso ao painel. A senha temporária deve ser entregue por canal seguro e nunca registrada em chamado, observação, log ou histórico.
 - Executar build e smoke test no preview antes de promover.
 
 ## Rollback

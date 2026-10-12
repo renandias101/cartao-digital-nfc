@@ -41,7 +41,7 @@ Antes da primeira publicação:
 
 A migration `20261010160000_private_card_images.sql` converte referências antigas para `/api/card-image` e torna o bucket privado. Faça backup antes. Depois de aplicá-la, execute o script do bucket e confira uma amostra de rascunhos e publicações. Em falha, interrompa a publicação, restaure o backup do banco e a configuração anterior do bucket; não tente corrigir dados reais manualmente durante o incidente.
 
-As migrations até `20261010160000_private_card_images.sql` foram aplicadas manualmente no projeto Supabase de produção em 12/10/2026. O histórico foi reconciliado com os arquivos locais e `supabase db push --dry-run` confirmou que o banco remoto está atualizado. O código da aplicação ainda não foi publicado; o deploy e as alterações no painel da Vercel dependem de autorização explícita.
+As migrations até `20261012120000_password_reset_requests.sql` foram aplicadas manualmente no projeto Supabase de produção em 12/10/2026. O histórico remoto foi reconciliado com os arquivos locais e `supabase db push --dry-run` confirmou que o banco está atualizado. O código desta versão da aplicação ainda não foi publicado; deploy e alterações no painel da Vercel dependem de autorização explícita.
 
 ## Documentação
 

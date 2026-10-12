@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { IconCard, IconHelp, IconHome, IconLayers, IconUserPlus, IconUsers } from "@/components/icons";
+import { IconCard, IconHelp, IconHome, IconLayers, IconLock, IconUserPlus, IconUsers } from "@/components/icons";
 
 const ICONES = {
   home: IconHome,
@@ -12,6 +12,7 @@ const ICONES = {
   userPlus: IconUserPlus,
   layers: IconLayers,
   help: IconHelp,
+  lock: IconLock,
 };
 
 export type NavItem = {

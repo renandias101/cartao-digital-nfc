@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { loginAction, type LoginState } from "@/app/login/actions";
@@ -26,12 +27,9 @@ export default function LoginPage() {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
   const erro = useTransientMessage(state.error ? state : null, DURACAO_LEGENDA.erro)?.error;
   const [showPassword, setShowPassword] = useState(false);
-  const [showRecovery, setShowRecovery] = useState(false);
   const [storageNotice, setStorageNotice] = useState("");
   const usernameRef = useRef<HTMLInputElement>(null);
   const rememberRef = useRef<HTMLInputElement>(null);
-  const recoveryWrapRef = useRef<HTMLDivElement>(null);
-  const recoveryButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     try {
@@ -44,30 +42,6 @@ export default function LoginPage() {
       // Armazenamento bloqueado pelo navegador não impede o login.
     }
   }, []);
-
-  useEffect(() => {
-    if (!showRecovery) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setShowRecovery(false);
-        recoveryButtonRef.current?.focus();
-      }
-    }
-
-    function handlePointerDown(event: PointerEvent) {
-      if (!recoveryWrapRef.current?.contains(event.target as Node)) {
-        setShowRecovery(false);
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.removeEventListener("pointerdown", handlePointerDown);
-    };
-  }, [showRecovery]);
 
   function saveRememberedUsername() {
     try {
@@ -153,34 +127,7 @@ export default function LoginPage() {
               <span id="remember-help" className={styles.accessibleCopy}>
                 Salva apenas o nome de usuário neste dispositivo, sem guardar a senha.
               </span>
-              <div ref={recoveryWrapRef} className={styles.recoveryWrap}>
-                <button ref={recoveryButtonRef} type="button" className={styles.recovery}
-                  aria-haspopup="dialog" aria-controls="recovery-help" aria-expanded={showRecovery}
-                  onClick={() => setShowRecovery((visible) => !visible)}>
-                  Esqueceu a senha?
-                </button>
-                {showRecovery ? (
-                  <div id="recovery-help" className={styles.recoveryPopover} role="dialog"
-                    aria-labelledby="recovery-title" aria-describedby="recovery-description">
-                    <div className={styles.recoveryCard}>
-                      <Image src="/images/password-help.webp" alt="" fill
-                        sizes="(max-width: 408px) 100vw, 390px" className={styles.recoveryArtwork} />
-                      <button type="button" className={styles.recoveryClose} aria-label="Fechar aviso"
-                        onClick={() => {
-                          setShowRecovery(false);
-                          recoveryButtonRef.current?.focus();
-                        }}>
-                        <Icon><path d="M5 5l14 14M19 5 5 19" /></Icon>
-                      </button>
-                      <div className={styles.recoveryText}>
-                        <h2 id="recovery-title">Esqueceu sua senha?</h2>
-                        <p id="recovery-description">Entre em contato com Renan Dias</p>
-                        <a href="tel:+5596981233398">96981233398</a>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+              <Link href="/esqueci-senha" className={styles.recovery}>Esqueceu a senha?</Link>
             </div>
 
             {storageNotice ? <p className={styles.notice} role="status">{storageNotice}</p> : null}

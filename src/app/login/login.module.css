@@ -84,7 +84,7 @@
 .options { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-top: 16px; }
 .remember { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 14px; color: #3d4453; cursor: pointer; }
 .remember input { width: 22px; height: 22px; margin: 0; accent-color: var(--login-gold); cursor: pointer; }
-.recovery { min-height: 44px; padding: 0; border: 0; background: transparent; color: #ac630a; font: inherit; font-size: 14px; cursor: pointer; }
+.recovery { min-height: 44px; padding: 0; border: 0; display: inline-flex; align-items: center; background: transparent; color: #ac630a; font: inherit; font-size: 14px; cursor: pointer; }
 .recovery:hover { text-decoration: underline; }
 .submit {
   width: 100%;
@@ -106,72 +106,10 @@
 .submit svg { width: 25px; height: 25px; }
 .submit:hover:not(:disabled) { filter: brightness(.94); }
 .submit:disabled { cursor: wait; opacity: .65; }
-.recoveryWrap { position: relative; z-index: 5; flex: 0 0 auto; margin-left: auto; }
-.recoveryPopover {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 9px);
-  width: min(390px, calc(100vw - 48px));
-  border-radius: 12px;
-  box-shadow: 0 12px 30px #0005;
-}
-.recoveryPopover::after {
-  content: "";
-  position: absolute;
-  right: 36px;
-  bottom: -6px;
-  width: 12px;
-  height: 12px;
-  transform: rotate(45deg);
-  background: #16110e;
-}
-.recoveryCard {
-  position: relative;
-  isolation: isolate;
-  min-height: 150px;
-  overflow: hidden;
-  border-radius: 12px;
-  background: #16110e;
-}
-.recoveryArtwork { object-fit: cover; object-position: center; }
-.recoveryClose {
-  position: absolute;
-  z-index: 2;
-  top: 8px;
-  right: 8px;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid #ffffff70;
-  border-radius: 50%;
-  background: #17120dcc;
-  color: #fff;
-  cursor: pointer;
-}
-.recoveryClose svg { width: 17px; height: 17px; }
-.recoveryText {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  max-width: 80%;
-  padding: 20px 16px;
-  color: #fff;
-  font-size: 14px;
-  line-height: 1.3;
-  text-shadow: 0 1px 5px #000;
-}
-.recoveryText h2 { margin: 0; font-size: 17px; }
-.recoveryText p { margin: 0; }
-.recoveryText a { color: #ffc16e; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .notice, .error { margin: 12px 0 0; padding: 12px; font-size: 14px; line-height: 1.5; border-radius: 8px; }
 .notice { color: #604417; background: #fff7e9; }
 .error { color: #a32020; background: #fff0f0; }
 .page :focus-visible { outline: 2px solid #9b5d14; outline-offset: 3px; }
-.recoveryPopover :focus-visible { outline: 2px solid #ffc16e; outline-offset: 3px; }
 .accessibleCopy { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
 /* Mantém a referência inteira dentro da altura disponível, inclusive em monitores largos. */

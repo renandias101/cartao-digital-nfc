@@ -1362,3 +1362,30 @@ por visitantes não podem ser recolhidos.
 
 Não existe PRD vigente; esta decisão se apoia nas regras do projeto, no relatório
 de auditoria e na autorização expressa de 10/10/2026.
+
+## D78 — Recuperação de senha intermediada pela administração
+
+**Data:** 12/10/2026 · **Origem:** solicitação expressa do responsável do produto
+
+A tela pública recebe somente o nome de usuário e sempre devolve a mesma mensagem
+para contas existentes, inexistentes ou inativas. Somente clientes ativos geram
+pedido. Existe no máximo um pedido pendente por cliente, com limites no servidor
+de 3 tentativas por usuário e 10 por origem a cada hora. Usuário e origem são
+normalizados e registrados somente como hash nos eventos de limitação.
+
+O sistema não envia e-mail ou WhatsApp automaticamente. Administradores
+autorizados consultam e atendem a fila protegida por RLS. A nova senha é gravada
+exclusivamente pelo Supabase Auth e nunca aparece em logs ou auditoria. O pedido
+só é marcado como atendido depois que a alteração no Auth termina com sucesso.
+Se a atualização final do pedido falhar, ele permanece pendente e pode ser
+atendido novamente.
+
+Encerrar um pedido sem redefinir a senha exige motivo. O histórico registra
+solicitante, datas, administrador responsável e resultado, sem armazenar a
+senha. Quando não existir outro administrador ativo, a recuperação do próprio
+administrador é feita diretamente no painel do Supabase por quem controla o
+projeto.
+
+A migration `20261012120000_password_reset_requests.sql` foi aplicada no
+Supabase de produção em 12/10/2026. O histórico local e remoto foi reconciliado
+e validado com `supabase db push --dry-run`.

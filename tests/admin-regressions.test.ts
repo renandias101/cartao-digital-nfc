@@ -65,3 +65,25 @@ test("interrompe em erro e permite repetir a limpeza sem pular imagens", async (
   assert.deepEqual(segunda, { ok: true, removidas: 120 });
   assert.equal(arquivos.length, 0);
 });
+
+test("pedido de senha só é concluído depois do sucesso no provedor de autenticação", () => {
+  const source = readFileSync(new URL("../src/lib/admin/password-reset-requests.ts", import.meta.url), "utf8");
+  const authUpdate = source.indexOf("admin.auth.admin.updateUserById");
+  const completion = source.indexOf('supabase.rpc("admin_complete_password_reset"');
+  assert.ok(authUpdate >= 0 && completion > authUpdate);
+  assert.match(source, /if \(authError\)[\s\S]*pedido continua pendente/);
+  assert.match(source, /if \(completionError\)[\s\S]*pedido continua pendente/);
+  assert.doesNotMatch(source, /console\.(?:log|error)\([^\n]*(?:newPassword|new_password)/);
+});
+
+test("recuperação pública usa a mesma mensagem para conta válida, inexistente ou inativa", () => {
+  const source = readFileSync(new URL("../src/lib/auth/password-recovery.ts", import.meta.url), "utf8");
+  assert.match(source, /Se o usuário estiver ativo, a administração foi avisada/);
+  assert.doesNotMatch(source, /conta (?:existe|inexistente|inativa)/i);
+});
+
+test("Next permite somente o endpoint local usado pelas imagens privadas", () => {
+  const config = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
+  assert.match(config, /localPatterns:\s*\[\{ pathname: ["']\/api\/card-image["'] \}\]/);
+  assert.doesNotMatch(config, /localPatterns:[\s\S]*pathname:\s*["']\/\*\*/);
+});

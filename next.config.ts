@@ -7,6 +7,13 @@ import type { NextConfig } from "next";
  * tem acesso a `process.env` normalmente.
  */
 const nextConfig: NextConfig = {
+  // Next 16 bloqueia imagens locais com query string por padrão. Este é o
+  // único endpoint local de imagem dinâmica; ele valida caminho e permissão
+  // no servidor antes de devolver qualquer arquivo privado.
+  images: {
+    localPatterns: [{ pathname: "/api/card-image" }],
+  },
+
   // Permite que dispositivos da rede local acessem os recursos e endpoints
   // exclusivos do servidor de desenvolvimento pelo endereço desta máquina.
   allowedDevOrigins: ["192.168.1.67", "192.168.1.68"],
