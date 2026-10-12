@@ -82,8 +82,9 @@ test("recuperação pública usa a mesma mensagem para conta válida, inexistent
   assert.doesNotMatch(source, /conta (?:existe|inexistente|inativa)/i);
 });
 
-test("Next permite somente o endpoint local usado pelas imagens privadas", () => {
+test("Next permite a rota privada e a arte estática do login", () => {
   const config = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
-  assert.match(config, /localPatterns:\s*\[\{ pathname: ["']\/api\/card-image["'] \}\]/);
+  assert.match(config, /pathname: ["']\/api\/card-image["']/);
+  assert.match(config, /pathname: ["']\/images\/login-reference-renan\.webp["']/);
   assert.doesNotMatch(config, /localPatterns:[\s\S]*pathname:\s*["']\/\*\*/);
 });

@@ -9,9 +9,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Next 16 bloqueia imagens locais com query string por padrão. Este é o
   // único endpoint local de imagem dinâmica; ele valida caminho e permissão
-  // no servidor antes de devolver qualquer arquivo privado.
+  // no servidor antes de devolver qualquer arquivo privado. A arte estática
+  // do login também precisa ser declarada quando localPatterns está presente.
   images: {
-    localPatterns: [{ pathname: "/api/card-image" }],
+    localPatterns: [
+      { pathname: "/api/card-image" },
+      { pathname: "/images/login-reference-renan.webp" },
+    ],
   },
 
   // Permite que dispositivos da rede local acessem os recursos e endpoints
