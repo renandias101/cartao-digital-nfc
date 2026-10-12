@@ -1389,3 +1389,11 @@ projeto.
 A migration `20261012120000_password_reset_requests.sql` foi aplicada no
 Supabase de produção em 12/10/2026. O histórico local e remoto foi reconciliado
 e validado com `supabase db push --dry-run`.
+
+## D79 — A raiz do sistema redireciona para o login
+
+**Data:** 12/10/2026 · **Origem:** decisão expressa do responsável do produto
+
+O acesso a `/` redireciona imediatamente para `/login`. Os cartões públicos
+continuam em `/{username}` e as regras de publicação, status e página neutra
+permanecem inalteradas.

@@ -80,17 +80,6 @@ mudança de produto e não foi aplicada: forçar troca no primeiro login.
 LGPD 15 a sugere conforme o tipo de aplicação; o PRD não prevê a página. Não
 foi criada, por respeito ao escopo (§59). Pendência de conformidade.
 
-## Bloqueiam a etapa 9 (página pública)
-
-### P7 — O que deve existir na raiz `/` do site?
-
-O PRD especifica `/{usuario}` para o cartão público (§6) e as áreas de painel,
-mas não define o conteúdo de `/`. Opções: página institucional do serviço,
-redirecionamento para `/login`, ou uma página neutra. Hoje há um placeholder
-neutro. Impacto: baixo, mas precisa de definição antes do deploy.
-
----
-
 # Situação após a etapa 3
 
 Em 29/09/2026 a instrução foi para continuar sem as respostas. P1 a P4 foram
@@ -119,4 +108,5 @@ testado**: o registro sobrevive com `client_id` nulo e snapshot do username,
 inclusive quando a exclusão acontece por fora da aplicação (gatilho, não só
 dentro da função).
 
-P6 e P7 seguem abertas e ainda não bloqueiam nada implementado.
+P6 segue aberta e ainda não bloqueia nada implementado. P7 foi resolvida em
+12/10/2026: a raiz `/` redireciona para `/login`.
