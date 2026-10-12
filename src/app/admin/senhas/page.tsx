@@ -13,7 +13,7 @@ export default async function PasswordRequestsPage(props: {
 }) {
   const actor = await getActor();
   if (!actor.logado) redirect("/login");
-  if (!actor.isAdmin) redirect("/painel");
+  if (!actor.isAdmin) redirect(actor.requiresMfa ? "/mfa" : "/painel");
   const sp = await props.searchParams;
   const status = sp.status === "finished" ? "finished" : "pending";
   const page = normalizarPagina(sp.pagina);

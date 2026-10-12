@@ -61,7 +61,7 @@ function montarQuery(base: Record<string, string>, sobrescrever: Record<string, 
 export default async function AdminPage(props: PageProps<"/admin">) {
   const actor = await getActor();
   if (!actor.logado) redirect("/login");
-  if (!actor.isAdmin) redirect("/painel");
+  if (!actor.isAdmin) redirect(actor.requiresMfa ? "/mfa" : "/painel");
 
   const sp = await props.searchParams;
   const filtro = lerFiltro(sp.filtro);

@@ -24,5 +24,5 @@ export async function loginAction(
     return { error: resultado.mensagem };
   }
 
-  redirect(resultado.isAdmin ? "/admin" : "/painel");
+  redirect(resultado.isAdmin ? "/mfa" : "/painel");
 }

@@ -51,7 +51,7 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const areaProtegida = pathname.startsWith("/painel") || pathname.startsWith("/admin");
+  const areaProtegida = pathname.startsWith("/painel") || pathname.startsWith("/admin") || pathname === "/mfa";
   const paginaDeLogin = pathname === "/login";
 
   if (areaProtegida && !user) {
@@ -60,7 +60,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (paginaDeLogin && user) {
-    const destino = new URL("/painel", request.url);
+    const destino = new URL("/mfa", request.url);
     return NextResponse.redirect(destino);
   }
 
@@ -68,5 +68,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/painel/:path*", "/admin/:path*"],
+  matcher: ["/login", "/mfa", "/painel/:path*", "/admin/:path*"],
 };

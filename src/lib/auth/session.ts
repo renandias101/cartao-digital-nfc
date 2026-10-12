@@ -6,8 +6,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type Actor =
   | { logado: false }
-  | { logado: true; userId: string; isAdmin: true }
-  | { logado: true; userId: string; isAdmin: false };
+  | { logado: true; userId: string; isAdmin: true; requiresMfa: false }
+  | { logado: true; userId: string; isAdmin: false; requiresMfa: boolean };
 
 /**
  * Identifica quem está logado nesta requisição, e se é o administrador.
@@ -37,12 +37,24 @@ export const getActor = cache(async (): Promise<Actor> => {
     return { logado: false };
   }
 
-  const { data: isAdmin, error: adminError } = await supabase.rpc("am_i_admin");
+  let { data: isAdmin, error: adminError } = await supabase.rpc("am_i_admin_account");
+  if (adminError?.code === "PGRST202") {
+    const fallback = await supabase.rpc("am_i_admin");
+    isAdmin = fallback.data;
+    adminError = fallback.error;
+  }
   if (adminError) {
     // Falha ao verificar admin não deve, por padrão, conceder privilégio.
     // Trata como cliente comum; cada tela protegida de admin confere de novo.
-    return { logado: true, userId: userData.user.id, isAdmin: false };
+    return { logado: true, userId: userData.user.id, isAdmin: false, requiresMfa: false };
   }
+  if (!isAdmin) return { logado: true, userId: userData.user.id, isAdmin: false, requiresMfa: false };
 
-  return { logado: true, userId: userData.user.id, isAdmin: Boolean(isAdmin) };
+  const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (assuranceError || assurance.currentLevel !== "aal2") {
+    // A conta é administrativa, mas nenhuma autorização privilegiada é
+    // concedida antes da confirmação do segundo fator.
+    return { logado: true, userId: userData.user.id, isAdmin: false, requiresMfa: true };
+  }
+  return { logado: true, userId: userData.user.id, isAdmin: true, requiresMfa: false };
 });

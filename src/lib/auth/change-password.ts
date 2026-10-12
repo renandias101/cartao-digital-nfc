@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export type ResultadoTrocaSenha = { ok: true } | { ok: false; mensagem: string };
 
 /** Motivos que o Supabase informa ao recusar a nova senha, em linguagem do cliente. */
-function mensagemDoErroDeTroca(codigo: string | undefined, detalhe: string): string {
+function mensagemDoErroDeTroca(codigo: string | undefined): string {
   switch (codigo) {
     case "same_password":
       return "A nova senha precisa ser diferente da senha atual.";
@@ -19,11 +19,8 @@ function mensagemDoErroDeTroca(codigo: string | undefined, detalhe: string): str
     case "session_expired":
     case "session_not_found":
       return "Sessão expirada. Faça login novamente.";
-    default: {
-      // Descrição do próprio Supabase (não contém a senha), para o cliente poder informar o motivo.
-      const motivo = [detalhe, codigo ? `código: ${codigo}` : ""].filter(Boolean).join(" — ");
-      return `Não foi possível trocar a senha${motivo ? `: ${motivo}` : ""}. Tente novamente.`;
-    }
+    default:
+      return "Não foi possível trocar a senha. Tente novamente.";
   }
 }
 
@@ -63,7 +60,7 @@ export async function trocarSenha(
   if (erroTroca) {
     // Só o código e o status — nunca a senha. Sem isso a causa real some.
     console.error("[trocarSenha] updateUser falhou:", erroTroca.code ?? erroTroca.name, erroTroca.status);
-    return { ok: false, mensagem: mensagemDoErroDeTroca(erroTroca.code, erroTroca.message) };
+    return { ok: false, mensagem: mensagemDoErroDeTroca(erroTroca.code) };
   }
 
   return { ok: true };

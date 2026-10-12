@@ -46,8 +46,8 @@ function secao(titulo) {
 }
 
 /** Executa SQL assumindo um papel e uma identidade, e desfaz tudo ao final. */
-async function comoPapel(db, papel, sub, sql) {
-  const claims = sub ? JSON.stringify({ sub, role: papel }) : null;
+async function comoPapel(db, papel, sub, sql, aal = "aal2") {
+  const claims = sub ? JSON.stringify({ sub, role: papel, aal }) : null;
   const preparo = [
     "begin",
     `set local role ${papel}`,
@@ -85,8 +85,8 @@ async function linhas(db, papel, sub, sql) {
  * de sessão, não de transação — por isso o `RESET` explícito no fim, para não
  * vazar o papel assumido para o resto da suíte.
  */
-async function comoPapelConfirmando(db, papel, sub, sql) {
-  const claims = sub ? JSON.stringify({ sub, role: papel }) : null;
+async function comoPapelConfirmando(db, papel, sub, sql, aal = "aal2") {
+  const claims = sub ? JSON.stringify({ sub, role: papel, aal }) : null;
   try {
     await db.exec(`set role ${papel}`);
     if (claims) await db.exec(`set "request.jwt.claims" = '${claims}'`);
@@ -152,6 +152,7 @@ async function principal() {
     "20261010150000_runtime_validation_and_support_quota.sql",
     "20261010160000_private_card_images.sql",
     "20261012120000_password_reset_requests.sql",
+    "20261012150000_admin_mfa_aal2.sql",
   ];
   for (const m of migracoes) {
     await db.exec(readFileSync(join(AQUI, "..", "migrations", m), "utf8"));
@@ -829,6 +830,20 @@ async function principal() {
     "select public.am_i_admin() as v",
   );
   verificar("am_i_admin() é true para o admin", admEhAdmin.ok && admEhAdmin.resultado.rows[0].v === true);
+
+  const admSemSegundoFator = await comoPapel(
+    db,
+    "authenticated",
+    ADMIN,
+    "select public.am_i_admin() as autorizado, public.am_i_admin_account() as conta_admin",
+    "aal1",
+  );
+  verificar(
+    "admin em aal1 é identificado para o desafio, mas não recebe autorização administrativa",
+    admSemSegundoFator.ok
+      && admSemSegundoFator.resultado.rows[0].conta_admin === true
+      && admSemSegundoFator.resultado.rows[0].autorizado === false,
+  );
 
   const clienteNaoEhAdmin = await comoPapel(
     db,

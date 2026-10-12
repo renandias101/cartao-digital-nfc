@@ -125,7 +125,14 @@ export async function tentarLogin(
     return { ok: false, mensagem: PROTECAO_INDISPONIVEL };
   }
 
-  const { data: isAdmin, error: erroPapel } = await supabase.rpc("am_i_admin");
+  let { data: isAdmin, error: erroPapel } = await supabase.rpc("am_i_admin_account");
+  // Compatibilidade durante a publicação coordenada: a aplicação pode chegar
+  // alguns minutos antes da migration que cria a função de identificação.
+  if (erroPapel?.code === "PGRST202") {
+    const fallback = await supabase.rpc("am_i_admin");
+    isAdmin = fallback.data;
+    erroPapel = fallback.error;
+  }
   if (erroPapel) {
     console.error("Falha ao verificar papel após autenticação.");
     await supabase.auth.signOut();

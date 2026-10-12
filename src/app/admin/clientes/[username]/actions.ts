@@ -133,7 +133,11 @@ export async function salvarNotasAction(
   formData: FormData,
 ): Promise<AcaoState> {
   const notas = String(formData.get("notes") ?? "");
-  await salvarObservacoes(clientId, username, notas);
+  try {
+    await salvarObservacoes(clientId, username, notas);
+  } catch {
+    return { ok: false, mensagem: "Não foi possível salvar as observações. Tente novamente." };
+  }
   revalidatePath(`/admin/clientes/${username}`);
   return { ok: true, mensagem: "Observações salvas." };
 }

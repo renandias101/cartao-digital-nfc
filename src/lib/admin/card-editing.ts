@@ -44,8 +44,7 @@ export async function publicarCartaoDoCliente(clientId: string): Promise<Resulta
   if (!acesso.ok) return acesso;
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("admin_publish_card", { p_client_id: clientId });
-  // A mensagem das funções do banco já é para gente (ex.: falta nome ou cor).
-  if (error) return { ok: false, mensagem: error.message };
+  if (error) return { ok: false, mensagem: "Não foi possível publicar. Confira se os campos obrigatórios estão preenchidos e tente novamente." };
   return { ok: true };
 }
 
@@ -54,6 +53,6 @@ export async function descartarAlteracoesDoCliente(clientId: string): Promise<Re
   if (!acesso.ok) return acesso;
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("admin_restore_draft", { p_client_id: clientId });
-  if (error) return { ok: false, mensagem: error.message };
+  if (error) return { ok: false, mensagem: "Não foi possível descartar as alterações. Tente novamente." };
   return { ok: true };
 }

@@ -88,9 +88,7 @@ export async function publishCard(): Promise<ResultadoPublicar> {
   const { error } = await supabase.rpc("publish_card");
 
   if (error) {
-    // A mensagem da exceção do Postgres já é apresentável (ver a função
-    // `publish_card` na migration) — não existe detalhe técnico a esconder.
-    return { ok: false, mensagem: error.message };
+    return { ok: false, mensagem: "Não foi possível publicar. Confira se os campos obrigatórios estão preenchidos e tente novamente." };
   }
   return { ok: true };
 }
@@ -101,7 +99,7 @@ export async function restoreDraft(): Promise<ResultadoPublicar> {
   const { error } = await supabase.rpc("restore_draft");
 
   if (error) {
-    return { ok: false, mensagem: error.message };
+    return { ok: false, mensagem: "Não foi possível restaurar o rascunho. Tente novamente." };
   }
   return { ok: true };
 }

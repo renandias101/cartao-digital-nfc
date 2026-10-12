@@ -32,6 +32,9 @@ export default async function PainelPage() {
   if (!actor.logado) {
     redirect("/login");
   }
+  if (actor.requiresMfa) {
+    redirect("/mfa");
+  }
   if (actor.isAdmin) {
     redirect("/admin");
   }

@@ -53,16 +53,18 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
         <main className={styles.page}><section className={styles.workspace}>
         <CardEditor key="admin" isActive initialContent={{displayName: 'Cliente', backgroundColor:'#000000',
           buttonColor:'#ffffff', buttons:[]}} actions={{salvarRascunho: registrar('salvar'), publicar: registrar('publicar'),
-          restaurar: registrar('restaurar'), enviarImagem: async () => ({ok:false, mensagem:'sem upload'})}}/>
+          restaurar: registrar('restaurar'), prepararImagem: async () => ({ok:false, mensagem:'sem upload'}),
+          processarImagem: async () => ({ok:false, mensagem:'sem upload'})}}/>
         </section></main>);
       root.render(
         <main className={styles.page}><section className={styles.workspace}>
         <CardEditor isActive initialContent={{displayName: 'Teste', backgroundColor:'#edf2fa',
-          buttonColor:'#2455ad', profilePhoto:'/test.png', buttons:[]}}/>
+          buttonColor:'#2455ad', profilePhoto:'/api/card-image?path=00000000-0000-4000-8000-000000000001/profile-00000000-0000-4000-8000-000000000003.webp', buttons:[]}}/>
         </section><SupportBubble /></main>);
     ` },
     plugins: [{ name: "isolated-editor", setup(builder) {
       builder.onResolve({ filter: /^@\/app\/painel\/editor\/actions$/ }, () => ({ path: "actions", namespace: "fixture" }));
+      builder.onResolve({ filter: /^@\/lib\/supabase\/browser$/ }, () => ({ path: "supabase-browser", namespace: "fixture" }));
       builder.onResolve({ filter: /^next\/image$/ }, () => ({ path: "image", namespace: "fixture" }));
       builder.onResolve({ filter: /^@\/lib\/card\/public$/ }, () => ({ path: "public", namespace: "fixture" }));
       builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "fixture" }));
@@ -75,12 +77,18 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
           }
           export async function publicarAction() {window.fixture.published=structuredClone(window.fixture.saved); return {ok:true,mensagem:'Publicado.'};}
           export async function restaurarAction() {return {ok:false,mensagem:'Fixture sem restauração.'};}
-          export async function enviarImagemAction(purpose) {
+          export async function prepararImagemAction(purpose) {
+            return {ok:true,path:'staging/test.webp',token:'fixture-token'};
+          }
+          export async function processarImagemAction(_path, purpose) {
             window.fixture.uploadCount++;
             if(window.fixture.failUpload) throw new Error('Falha de transporte simulada');
-            return {ok:true,url:'/test.png?new=' + purpose};
+            return {ok:true,url:'/api/card-image?path=00000000-0000-4000-8000-000000000001/' + purpose + '-00000000-0000-4000-8000-000000000002.webp'};
           }
-        ` : path === "public" ? `export async function getPublicCard(){return window.fixture.published;}
+        ` : path === "supabase-browser" ? `export function createSupabaseBrowserClient(){return {storage:{from(){return {
+            async uploadToSignedUrl(){return window.fixture.failUpload ? {error:new Error('Falha de transporte simulada')} : {error:null};}
+          };}}};}`
+          : path === "public" ? `export async function getPublicCard(){return window.fixture.published;}
           export async function usernameExists(){return true;}`
           : path === "footer" ? `export async function getCardFooter(){return window.fixture.footer ?? null;}`
           : path === "support" ? `export async function enviarSuporteAction(_prev, form) {
@@ -249,13 +257,14 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     await until("document.querySelectorAll('li').length === 2");
     await click("Editar");
     await input("titulo-botao", "Não salvo");
-    await evaluate("Array.from(document.querySelectorAll('button')).filter(b=>b.textContent.trim()==='Editar')[1].click()");
+    await evaluate("Array.from(document.querySelectorAll('li[data-button-id]')[1].querySelectorAll('button')).find(b=>b.textContent.trim()==='Editar').click()");
     await until("document.getElementById('titulo-botao')?.value === 'Site'");
     await input("titulo-botao", "Outro site");
     await click("Salvar botão");
+    await until("Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='Salvar rascunho' && !b.disabled)");
     await click("Salvar rascunho");
     await until("window.fixture.saved?.buttons[1]?.title === 'Outro site'");
-    assert.equal(await evaluate("window.fixture.saved.buttons[1].icon"), "/test.png?new=icon");
+    assert.match(await evaluate("window.fixture.saved.buttons[1].icon"), /\/icon-[0-9a-f-]+\.webp$/);
     // Clicar e arrastar na lista do editor, com mouse de verdade e SEM esperar: o segundo item sobe para o topo.
     await evaluate("document.querySelector('li[data-button-id]').scrollIntoView({block:'center'})");
     const titulos = () => evaluate("[...document.querySelectorAll('li[data-button-id]')].map(li => li.textContent)");
@@ -272,17 +281,16 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     await evaluate("window.fixture.failUpload = true");
     await chooseImage("Foto de perfil");
     await until("document.querySelector('[role=alert]')?.textContent.includes('imagem anterior')");
-    assert.equal(await evaluate("document.querySelector('aside img').getAttribute('src')"), "/test.png");
+    assert.match(await evaluate("document.querySelector('aside img').getAttribute('src')"), /\/profile-[0-9a-f-]+\.webp$/);
     await evaluate("window.fixture.failUpload = false");
     for (const label of ["Foto de perfil", "Banner", "Imagem de fundo"]) {
       const count = await evaluate("window.fixture.uploadCount");
       await chooseImage(label);
       await until(`window.fixture.uploadCount === ${count + 1} && !document.querySelector('[aria-busy=true]')`);
     }
-    await click("Salvar rascunho");
-    await until("window.fixture.saved?.backgroundImage === '/test.png?new=background'");
-    assert.equal(await evaluate("window.fixture.saved.profilePhoto"), "/test.png?new=profile");
-    assert.equal(await evaluate("window.fixture.saved.banner"), "/test.png?new=banner");
+    await until("window.fixture.saved?.backgroundImage?.includes('/background-')");
+    assert.match(await evaluate("window.fixture.saved.profilePhoto"), /\/profile-[0-9a-f-]+\.webp$/);
+    assert.match(await evaluate("window.fixture.saved.banner"), /\/banner-[0-9a-f-]+\.webp$/);
     const count = await evaluate("window.fixture.uploadCount");
     await chooseImage("Foto de perfil", "image/svg+xml");
     await until("document.querySelector('[role=alert]')?.textContent.includes('Formato não suportado')");
@@ -298,7 +306,6 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     await evaluate("document.querySelector('dialog[open] [data-confirm]').click()");
     await until("document.querySelectorAll('li').length === 1");
     assert.ok(await evaluate("document.documentElement.scrollWidth <= innerWidth"), `Sem overflow horizontal em ${width}px`);
-    await click("Salvar rascunho");
     await until("window.fixture.saved?.profession === 'Desenvolvedor Web'");
     // Publicar exige o rascunho confirmado na tela, não só a action chamada.
     await until("document.body.textContent.includes('Alterações salvas automaticamente')");

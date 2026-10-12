@@ -11,7 +11,7 @@ import { getCardFooterSettings } from "@/lib/system/card-footer-server";
 export default async function AdminRodapePage() {
   const actor = await getActor();
   if (!actor.logado) redirect("/login");
-  if (!actor.isAdmin) redirect("/painel");
+  if (!actor.isAdmin) redirect(actor.requiresMfa ? "/mfa" : "/painel");
 
   const settings = await getCardFooterSettings();
 

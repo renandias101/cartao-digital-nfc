@@ -94,7 +94,7 @@ function hojeIso(): string {
 export default async function DetalheClientePage(props: PageProps<"/admin/clientes/[username]">) {
   const actor = await getActor();
   if (!actor.logado) redirect("/login");
-  if (!actor.isAdmin) redirect("/painel");
+  if (!actor.isAdmin) redirect(actor.requiresMfa ? "/mfa" : "/painel");
 
   const { username } = await props.params;
   const cliente = await buscarClientePorUsername(username);

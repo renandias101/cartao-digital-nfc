@@ -1,5 +1,6 @@
 import { IconUser } from "@/components/icons";
 import { ForgotPasswordForm } from "@/app/esqueci-senha/forgot-password-form";
+import Link from "next/link";
 
 export default function ForgotPasswordPage() {
   return (
@@ -16,6 +17,9 @@ export default function ForgotPasswordPage() {
           Informe seu usuário. A administração será avisada para criar uma nova senha.
         </p>
         <ForgotPasswordForm />
+        <p className="mt-5 text-center text-xs text-muted-foreground">
+          Consulte o <Link href="/privacidade" className="font-medium text-gold hover:underline">aviso de privacidade</Link>.
+        </p>
       </section>
     </main>
   );

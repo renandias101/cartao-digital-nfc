@@ -10,7 +10,7 @@ export default async function NovoClientePage() {
     redirect("/login");
   }
   if (!actor.isAdmin) {
-    redirect("/painel");
+    redirect(actor.requiresMfa ? "/mfa" : "/painel");
   }
 
   const hoje = new Date().toLocaleDateString("en-CA", { timeZone: "America/Belem" });

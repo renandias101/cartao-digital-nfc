@@ -138,6 +138,10 @@ export default function LoginPage() {
               {!pending ? <Icon><path d="M4 12h16M13 5l7 7-7 7" /></Icon> : null}
             </button>
           </form>
+          <p className="mt-5 text-center text-xs leading-relaxed text-zinc-500">
+            Ao usar o sistema, seus dados são tratados conforme o nosso{" "}
+            <Link href="/privacidade" className="font-medium text-gold hover:underline">aviso de privacidade</Link>.
+          </p>
         </div>
       </section>
 
