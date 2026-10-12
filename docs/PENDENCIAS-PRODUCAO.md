@@ -12,9 +12,9 @@ Atualizado em: 12/10/2026
 - [ ] Ativar TOTP no Supabase em **Authentication → Multi-Factor Authentication**, habilitando cadastro e verificação.
 - [ ] Cadastrar o TOTP do administrador `renandias101` e confirmar uma sessão `aal2`.
 - [ ] Guardar o procedimento/meio de recuperação administrativa em local seguro.
-- [ ] Autorizar commit, push e deploy das alterações locais.
-- [ ] Publicar primeiro em Preview e executar os testes hospedados.
-- [ ] Fazer backup verificável do Postgres e do bucket privado `card-images` antes da migration.
+- [x] Commit criado na branch `preview/security-mfa-20261012` e enviado ao GitHub (`0bd5717`), sem alterar a `main`.
+- [ ] Publicar em Preview e executar os testes hospedados. O push não gerou deployment enquanto o projeto permaneceu pausado.
+- [ ] Fazer backup verificável do Postgres e do bucket privado `card-images` antes da migration. A CLI está vinculada ao projeto correto, mas o computador não possui `pg_dump`, Docker ou Podman para gerar o dump.
 - [ ] Aplicar `supabase/migrations/20261012150000_admin_mfa_aal2.sql` somente depois de o fluxo TOTP estar publicado e validado.
 - [ ] Validar que falhas de MFA não bloqueiam o único administrador.
 - [ ] Promover a versão validada para produção somente com autorização.
