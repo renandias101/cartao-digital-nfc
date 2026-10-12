@@ -8,10 +8,21 @@ import { checkSquareEligibility } from "@/lib/card/presentation";
  * validação definitiva (Seguranca 15-18); há um teste de paridade em
  * `supabase/tests/rls.test.mjs` (seção 24) contra a função SQL.
  */
-export function validarBotao(btn: CardButton): { valido: true } | { valido: false; mensagem: string } {
-  if (!btn.id) {
+export function validarBotao(input: unknown): { valido: true } | { valido: false; mensagem: string } {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { valido: false, mensagem: "Botão inválido." };
+  }
+  const btn = input as Record<string, unknown>;
+  if (typeof btn.id !== "string" || !btn.id || btn.id.length > 64) {
     return { valido: false, mensagem: "Botão sem identificador." };
   }
+  if (typeof btn.enabled !== "boolean") return { valido: false, mensagem: "Estado do botão inválido." };
+  if (typeof btn.type !== "string" || !["link", "text", "wifi", "pix", "phone", "address"].includes(btn.type)) {
+    return { valido: false, mensagem: "Tipo de botão inválido." };
+  }
+  if (btn.icon !== undefined && typeof btn.icon !== "string") return { valido: false, mensagem: "Ícone inválido." };
+  if (btn.title !== undefined && typeof btn.title !== "string") return { valido: false, mensagem: "Título inválido." };
+  if (btn.description !== undefined && typeof btn.description !== "string") return { valido: false, mensagem: "Descrição inválida." };
   if (btn.title !== undefined && contarCaracteres(btn.title) > LIMITES_TEXTO.tituloBotao) {
     return { valido: false, mensagem: `Título: máximo de ${LIMITES_TEXTO.tituloBotao} caracteres.` };
   }
@@ -22,10 +33,10 @@ export function validarBotao(btn: CardButton): { valido: true } | { valido: fals
     return { valido: false, mensagem: "Modelo de botão inválido." };
   }
 
-  const porTipo = validarCamposDoTipo(btn);
+  const porTipo = validarCamposDoTipo(btn as unknown as CardButton);
   if (!porTipo.valido) return porTipo;
   if (btn.layout === "square") {
-    const quadrado = checkSquareEligibility(btn);
+    const quadrado = checkSquareEligibility(btn as unknown as CardButton);
     if (!quadrado.ok) return { valido: false, mensagem: quadrado.mensagem };
   }
   return { valido: true };
@@ -79,7 +90,8 @@ function validarCamposDoTipo(btn: CardButton): { valido: true } | { valido: fals
 }
 
 /** Valida a lista inteira, incluindo o limite de 10 (PRD §11). */
-export function validarBotoes(buttons: CardButton[]): { valido: true } | { valido: false; mensagem: string } {
+export function validarBotoes(buttons: unknown): { valido: true } | { valido: false; mensagem: string } {
+  if (!Array.isArray(buttons)) return { valido: false, mensagem: "Lista de botões inválida." };
   if (buttons.length > MAX_BOTOES) {
     return { valido: false, mensagem: `Máximo de ${MAX_BOTOES} botões.` };
   }

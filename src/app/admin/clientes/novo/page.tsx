@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { NewClientForm } from "@/app/admin/clientes/novo/new-client-form";
 import { getActor } from "@/lib/auth/session";
+import { listarClientesParaDuplicacao } from "@/lib/admin/clients";
 
 export default async function NovoClientePage() {
   const actor = await getActor();
@@ -12,5 +13,7 @@ export default async function NovoClientePage() {
     redirect("/painel");
   }
 
-  return <NewClientForm />;
+  const hoje = new Date().toLocaleDateString("en-CA", { timeZone: "America/Belem" });
+  const clientes = await listarClientesParaDuplicacao();
+  return <NewClientForm hoje={hoje} clientes={clientes} />;
 }

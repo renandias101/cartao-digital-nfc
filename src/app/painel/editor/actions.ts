@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { enviarImagemDoFormulario, type PropositoImagem } from "@/lib/card/images";
+import { prepararUploadImagem, processarUploadImagem, type PropositoImagem } from "@/lib/card/images";
 import { publishCard, restoreDraft, saveDraft } from "@/lib/card/draft";
 import type { CardContent } from "@/lib/card/types";
 
@@ -37,10 +37,10 @@ export type ResultadoUploadAction =
   | { ok: true; url: string }
   | { ok: false; mensagem: string };
 
-export async function enviarImagemAction(
-  proposito: PropositoImagem,
-  formData: FormData,
-  buttonId?: string,
-): Promise<ResultadoUploadAction> {
-  return enviarImagemDoFormulario(proposito, formData, buttonId);
+export async function prepararImagemAction(proposito: PropositoImagem, buttonId?: string) {
+  return prepararUploadImagem(proposito, buttonId);
+}
+
+export async function processarImagemAction(path: string, proposito: PropositoImagem, buttonId?: string): Promise<ResultadoUploadAction> {
+  return processarUploadImagem(path, proposito, buttonId);
 }

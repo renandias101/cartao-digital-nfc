@@ -109,6 +109,16 @@ async function principal() {
 
   // Shim + migrations, na ordem.
   await db.exec(readFileSync(join(AQUI, "supabase-shim.sql"), "utf8"));
+  await db.exec(`
+    create schema if not exists storage;
+    create table if not exists storage.objects (id uuid, bucket_id text, name text);
+    create table if not exists storage.buckets (
+      id text primary key, public boolean not null default false,
+      file_size_limit bigint, allowed_mime_types text[]
+    );
+    insert into storage.buckets (id, public) values ('card-images', true)
+    on conflict (id) do nothing;
+  `);
   const migracoes = [
     "20260929120000_schema_inicial.sql",
     "20260929120100_rls_e_privilegios.sql",
@@ -136,6 +146,11 @@ async function principal() {
     "20261004180000_registro_de_pagamentos.sql",
     "20261004190000_suporte_classificacao.sql",
     "20261004200000_visao_operacional_admin.sql",
+    "20261010120000_admin_consistency_and_pagination.sql",
+    "20261010130000_admin_username_aliases.sql",
+    "20261010140000_payment_on_client_creation.sql",
+    "20261010150000_runtime_validation_and_support_quota.sql",
+    "20261010160000_private_card_images.sql",
   ];
   for (const m of migracoes) {
     await db.exec(readFileSync(join(AQUI, "..", "migrations", m), "utf8"));
@@ -701,7 +716,7 @@ async function principal() {
     "resolve identidade de cliente por username",
     idCliente.ok &&
       idCliente.resultado.rows[0]?.user_id === VENCIDO &&
-      idCliente.resultado.rows[0]?.email === "vencido@internal.cartao.local",
+      idCliente.resultado.rows[0]?.email === "v@interno",
     JSON.stringify(idCliente.ok ? idCliente.resultado.rows : idCliente.erro),
   );
 
@@ -2640,6 +2655,230 @@ async function principal() {
   verificar("categoria fora da lista é recusada", !(await comoPapel(db, "authenticated", ADMIN,
     "update public.support_requests set category = 'outra'")).ok);
   await db.exec("delete from public.support_requests");
+
+  // =========================================================================
+  secao("Consistência administrativa e paginação (correções de 10/10/2026)");
+  // =========================================================================
+  const totalForaDaPagina = await comoPapel(db, "authenticated", ADMIN,
+    "select public.admin_count_clients('todos', null) as n");
+  verificar("contagem de clientes independe de uma página vazia",
+    totalForaDaPagina.ok && Number(totalForaDaPagina.resultado.rows[0].n) > 0);
+
+  const atualizouDados = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select public.admin_update_client_data('${OP}', 'Nome Transacional', '5596999999999', 'novo@exemplo.com')`);
+  const dadosAtualizados = await db.query(`
+    select c.full_name, ct.whatsapp, ct.email,
+      (select count(*) from public.admin_audit_log where client_id = '${OP}' and action = 'client_updated') as audits
+    from public.clients c join public.client_admin_contacts ct on ct.client_id = c.id where c.id = '${OP}'
+  `);
+  verificar("nome, contatos e auditoria são gravados juntos",
+    atualizouDados.ok && dadosAtualizados.rows[0].full_name === "Nome Transacional" &&
+    dadosAtualizados.rows[0].email === "novo@exemplo.com" && Number(dadosAtualizados.rows[0].audits) > 0,
+    atualizouDados.erro);
+
+  await db.exec(`
+    create function public.test_fail_client_audit() returns trigger language plpgsql as $$
+    begin if new.action = 'client_updated' then raise exception 'falha de auditoria simulada'; end if; return new; end $$;
+    create trigger test_fail_client_audit before insert on public.admin_audit_log
+      for each row execute function public.test_fail_client_audit();
+  `);
+  const falhouAuditoria = await comoPapel(db, "authenticated", ADMIN,
+    `select public.admin_update_client_data('${OP}', 'Não Pode Persistir', '5596888888888', 'falha@exemplo.com')`);
+  const depoisDaFalha = await db.query(`select full_name from public.clients where id = '${OP}'`);
+  verificar("falha de auditoria desfaz nome e contatos na mesma transação",
+    !falhouAuditoria.ok && depoisDaFalha.rows[0].full_name === "Nome Transacional");
+  await db.exec("drop trigger test_fail_client_audit on public.admin_audit_log; drop function public.test_fail_client_audit()");
+
+  verificar("cliente comum não chama atualização administrativa transacional",
+    !(await comoPapel(db, "authenticated", OUTRO,
+      `select public.admin_update_client_data('${OUTRO}', 'Outro Nome', '', '')`)).ok);
+
+  const notasAtomicas = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select public.admin_save_client_notes('${OP}', 'Nota transacional')`);
+  verificar("observação e auditoria são salvas pela função transacional", notasAtomicas.ok, notasAtomicas.erro);
+
+  const auditouSenha = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select public.admin_log_password_reset('${OP}')`);
+  verificar("auditoria de senha pode ser repetida sem redefinir a senha", auditouSenha.ok, auditouSenha.erro);
+
+  await db.exec(`
+    alter table public.support_requests disable trigger support_requests_enforce_quota;
+    insert into public.support_requests (client_id, kind, message)
+    select '${OP}', 'help', 'Pedido fictício ' || n from generate_series(1, 101) n;
+    alter table public.support_requests enable trigger support_requests_enforce_quota;
+  `);
+  const suportePagina6 = await comoPapel(db, "authenticated", ADMIN, `
+    select id from public.support_requests
+    where client_id = '${OP}' order by created_at desc, id desc limit 20 offset 100
+  `);
+  verificar("mais de 100 pedidos continuam acessíveis por paginação",
+    suportePagina6.ok && suportePagina6.resultado.rows.length >= 1);
+
+  secao("36. Alteracao administrativa de username e aliases permanentes");
+  const URL_CLIENTE = "10000000-0000-4000-8000-000000000036";
+  await db.exec(`
+    insert into auth.users (id, email) values ('${URL_CLIENTE}', 'credencial-original@interno');
+    insert into public.clients (id, username, full_name, package_months, expires_at)
+      values ('${URL_CLIENTE}', 'url-original', 'Cliente URL', 3, now() + interval '90 days');
+    insert into public.card_published (client_id, content) values
+      ('${URL_CLIENTE}', '{"displayName":"Publicado","backgroundColor":"#ffffff","buttonColor":"#000000","buttons":[]}');
+  `);
+  const primeiraMudanca = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select * from public.admin_change_client_username('${URL_CLIENTE}', 'url-nova')`);
+  verificar("administrador altera o username em transacao", primeiraMudanca.ok, primeiraMudanca.erro);
+  const segundaMudanca = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select * from public.admin_change_client_username('${URL_CLIENTE}', 'url-final')`);
+  verificar("alteracoes sucessivas preservam cada endereco anterior", segundaMudanca.ok, segundaMudanca.erro);
+
+  const aliases = await db.query(`select alias from public.client_username_aliases
+    where client_id = '${URL_CLIENTE}' order by alias`);
+  verificar("dois aliases permanentes apontam para o mesmo cliente",
+    aliases.rows.map((r) => r.alias).join(",") === "url-nova,url-original");
+  for (const endereco of ["url-original", "url-nova", "url-final"]) {
+    const publico = await comoPapel(db, "anon", null,
+      `select public.get_public_card('${endereco}') as card`);
+    verificar(`NFC ${endereco} acessa somente a versao publicada`,
+      publico.ok && publico.resultado.rows[0]?.card?.displayName === "Publicado", publico.erro);
+  }
+
+  const conflitoAlias = await comoPapel(db, "authenticated", ADMIN,
+    `select public.admin_change_client_username('${URL_CLIENTE}', 'url-original')`);
+  verificar("alias antigo nunca pode ser reutilizado", !conflitoAlias.ok);
+  const conflitoAtual = await comoPapel(db, "authenticated", ADMIN,
+    `select public.admin_change_client_username('${URL_CLIENTE}', 'cliente-b')`);
+  verificar("URL atual de outro cliente nao pode ser usada", !conflitoAtual.ok);
+  const conflitoReservado = await comoPapel(db, "authenticated", ADMIN,
+    `select public.admin_change_client_username('${URL_CLIENTE}', 'admin')`);
+  verificar("nome reservado nao pode ser usado", !conflitoReservado.ok);
+  const tentativaCliente = await comoPapel(db, "authenticated", URL_CLIENTE,
+    `select public.admin_change_client_username('${URL_CLIENTE}', 'url-invasora')`);
+  verificar("cliente comum nao pode alterar username", !tentativaCliente.ok);
+  const reutilizacaoForaDaFuncao = await comoPapel(db, "authenticated", ADMIN,
+    `update public.clients set username = 'url-original' where id = '${VENCIDO}'`);
+  verificar("gatilho impede reutilizar alias fora da funcao administrativa", !reutilizacaoForaDaFuncao.ok);
+  const leituraDiretaAlias = await comoPapel(db, "authenticated", URL_CLIENTE,
+    "select * from public.client_username_aliases");
+  verificar("cliente nao le diretamente a tabela de aliases", !leituraDiretaAlias.ok);
+
+  const loginNovo = await linhas(db, "service_role", null,
+    "select * from public.resolve_login_identity('url-final')");
+  const loginAlias = await linhas(db, "service_role", null,
+    "select * from public.resolve_login_identity('url-original')");
+  verificar("login novo preserva id e e-mail original do Auth",
+    loginNovo?.[0]?.user_id === URL_CLIENTE && loginNovo?.[0]?.email === "credencial-original@interno");
+  verificar("alias publico antigo nao vira identidade de login", loginAlias?.length === 0);
+
+  const auditoriaUrl = await db.query(`select actor_id, detail from public.admin_audit_log
+    where client_id = '${URL_CLIENTE}' and action = 'username_changed' order by id`);
+  verificar("auditoria registra autor e valores anterior/novo",
+    auditoriaUrl.rows.length === 2 && auditoriaUrl.rows[0].actor_id === ADMIN
+      && auditoriaUrl.rows[0].detail.previous_username === "url-original"
+      && auditoriaUrl.rows[0].detail.new_username === "url-nova");
+
+  await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `update public.clients set expires_at = now() - interval '1 day' where id = '${URL_CLIENTE}'`);
+  const aliasVencido = await comoPapel(db, "anon", null,
+    "select public.username_exists('url-original') as existe, public.get_public_card('url-original') as card");
+  verificar("alias de cliente vencido mostra pagina neutra",
+    aliasVencido.ok && aliasVencido.resultado.rows[0].existe && aliasVencido.resultado.rows[0].card === null);
+  await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `update public.clients set expires_at = now() + interval '90 days', cancelled_at = now() where id = '${URL_CLIENTE}'`);
+  const aliasCancelado = await comoPapel(db, "anon", null,
+    "select public.username_exists('url-nova') as existe, public.get_public_card('url-nova') as card");
+  verificar("alias de cliente cancelado mostra pagina neutra",
+    aliasCancelado.ok && aliasCancelado.resultado.rows[0].existe && aliasCancelado.resultado.rows[0].card === null);
+
+  await db.exec(`
+    create function public.test_fail_username_audit() returns trigger language plpgsql as $$
+    begin if new.action = 'username_changed' then raise exception 'falha simulada'; end if; return new; end $$;
+    create trigger test_fail_username_audit before insert on public.admin_audit_log
+      for each row execute function public.test_fail_username_audit();
+  `);
+  const falhaAtomica = await comoPapel(db, "authenticated", ADMIN,
+    `select public.admin_change_client_username('${URL_CLIENTE}', 'nao-persistiu')`);
+  const aposFalha = await db.query(`select username,
+    exists(select 1 from public.client_username_aliases where alias = 'url-final') as alias_indevido
+    from public.clients where id = '${URL_CLIENTE}'`);
+  verificar("falha de auditoria reverte username e alias", !falhaAtomica.ok
+    && aposFalha.rows[0].username === "url-final" && !aposFalha.rows[0].alias_indevido);
+  await db.exec("drop trigger test_fail_username_audit on public.admin_audit_log; drop function public.test_fail_username_audit()");
+
+  await db.exec(`update public.clients set cancelled_at = now() - interval '4 months'
+    where id = '${URL_CLIENTE}'`);
+  const excluiuUrl = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select public.delete_client('${URL_CLIENTE}')`);
+  const aliasExcluido = await comoPapel(db, "anon", null,
+    "select public.username_exists('url-original') as antigo, public.username_exists('url-final') as atual, public.get_public_card('url-original') as card");
+  verificar("exclusao mantem URL atual e aliases reservados na pagina neutra", excluiuUrl.ok
+    && aliasExcluido.ok && aliasExcluido.resultado.rows[0].antigo
+    && aliasExcluido.resultado.rows[0].atual && aliasExcluido.resultado.rows[0].card === null);
+
+  secao("37. Pagamento opcional no cadastro do cliente");
+  const CADASTRO_PAGO = "10000000-0000-4000-8000-000000000037";
+  const CADASTRO_INVALIDO = "10000000-0000-4000-8000-000000000038";
+  await db.exec(`insert into auth.users (id, email) values
+    ('${CADASTRO_PAGO}', 'cadastro-pago@interno'),
+    ('${CADASTRO_INVALIDO}', 'cadastro-invalido@interno')`);
+  const criouComPagamento = await comoPapelConfirmando(db, "service_role", null, `
+    select public.admin_create_client_record(
+      '${CADASTRO_PAGO}', 'cadastro-pago', 'Cadastro Pago', 6,
+      now() + interval '6 months',
+      '{"displayName":"Cadastro Pago","backgroundColor":"#ffffff","buttonColor":"#000000","buttons":[]}',
+      '${ADMIN}', 12990, 'pix', current_date, 'Pagamento inicial ficticio'
+    )
+  `);
+  const pagamentoCadastro = await db.query(`select months, amount_cents, method, note, created_by
+    from public.client_payments where client_id = '${CADASTRO_PAGO}'`);
+  const auditoriaCadastro = await db.query(`select action from public.admin_audit_log
+    where client_id = '${CADASTRO_PAGO}' order by id`);
+  verificar("cadastro grava pagamento inicial com pacote, valor, forma, data e observacao",
+    criouComPagamento.ok && pagamentoCadastro.rows[0]?.months === 6
+      && pagamentoCadastro.rows[0]?.amount_cents === 12990
+      && pagamentoCadastro.rows[0]?.method === "pix"
+      && pagamentoCadastro.rows[0]?.note === "Pagamento inicial ficticio"
+      && pagamentoCadastro.rows[0]?.created_by === ADMIN, criouComPagamento.erro);
+  verificar("cadastro pago registra criacao e pagamento no historico",
+    auditoriaCadastro.rows.map((r) => r.action).join(",") === "client_created,payment_recorded");
+
+  const pagamentoInvalido = await comoPapelConfirmando(db, "service_role", null, `
+    select public.admin_create_client_record(
+      '${CADASTRO_INVALIDO}', 'cadastro-invalido', 'Cadastro Invalido', 3,
+      now() + interval '3 months',
+      '{"displayName":"Cadastro Invalido","backgroundColor":"#ffffff","buttonColor":"#000000","buttons":[]}',
+      '${ADMIN}', 1000, 'forma-invalida', current_date, null
+    )
+  `);
+  const restosInvalidos = await db.query(`select
+    exists(select 1 from public.clients where id = '${CADASTRO_INVALIDO}') as cliente,
+    exists(select 1 from public.card_drafts where client_id = '${CADASTRO_INVALIDO}') as rascunho,
+    exists(select 1 from public.admin_audit_log where client_id = '${CADASTRO_INVALIDO}') as auditoria`);
+  verificar("pagamento invalido reverte cliente, rascunho e auditoria do cadastro",
+    !pagamentoInvalido.ok && !restosInvalidos.rows[0].cliente
+      && !restosInvalidos.rows[0].rascunho && !restosInvalidos.rows[0].auditoria);
+
+  secao("38. Imagens privadas e vinculadas à publicação ativa");
+  const IMAGE_VERSION = "11111111-1111-4111-8111-111111111111";
+  const IMAGE_PATH = `${CADASTRO_PAGO}/profile-${IMAGE_VERSION}.webp`;
+  const DRAFT_IMAGE_PATH = `${CADASTRO_PAGO}/profile-22222222-2222-4222-8222-222222222222.webp`;
+  const IMAGE_URL = `/api/card-image?path=${IMAGE_PATH}`;
+  await db.exec(`insert into public.card_published (client_id, content)
+    select client_id, jsonb_set(content, '{profilePhoto}', '"${IMAGE_URL}"')
+    from public.card_drafts where client_id = '${CADASTRO_PAGO}'`);
+  const anonImagemPublicada = await comoPapel(db, "anon", null, `select public.can_read_card_image('${IMAGE_PATH}') as allowed`);
+  verificar("visitante lê somente imagem referenciada na publicação ativa", anonImagemPublicada.ok && anonImagemPublicada.resultado.rows[0].allowed);
+  verificar("visitante não lê caminho privado sem referência", !(await comoPapel(db, "anon", null,
+    `select public.can_read_card_image('${DRAFT_IMAGE_PATH}') as allowed`)).resultado.rows[0].allowed);
+  verificar("outro cliente não lê imagem de rascunho alheia", !(await comoPapel(db, "authenticated", CLIENTE_B,
+    `select public.can_read_card_image('${DRAFT_IMAGE_PATH}') as allowed`)).resultado.rows[0].allowed);
+  verificar("proprietário autenticado pode pré-visualizar sua imagem", (await comoPapel(db, "authenticated", CADASTRO_PAGO,
+    `select public.can_read_card_image('${DRAFT_IMAGE_PATH}') as allowed`)).resultado.rows[0].allowed);
+  verificar("banco recusa imagem pertencente a outro cliente", !(await comoPapel(db, "authenticated", CADASTRO_PAGO,
+    `update public.card_drafts set content = jsonb_set(content, '{profilePhoto}', '"/api/card-image?path=${CLIENTE_B}/profile-${IMAGE_VERSION}.webp"') where client_id = '${CADASTRO_PAGO}'`)).ok);
+  verificar("banco recusa URL externa em campo de imagem", !(await comoPapel(db, "authenticated", CADASTRO_PAGO,
+    `update public.card_drafts set content = jsonb_set(content, '{profilePhoto}', '"https://example.com/a.webp"') where client_id = '${CADASTRO_PAGO}'`)).ok);
+  await db.exec(`update public.clients set cancelled_at = now() where id = '${CADASTRO_PAGO}'`);
+  verificar("cancelamento revoga imediatamente a leitura anônima", !(await comoPapel(db, "anon", null,
+    `select public.can_read_card_image('${IMAGE_PATH}') as allowed`)).resultado.rows[0].allowed);
 
   await db.close();
 

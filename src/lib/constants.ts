@@ -22,6 +22,9 @@ export const USERNAME = {
   padrao: /^[a-z0-9](?:[a-z0-9]|-(?!-)){1,30}[a-z0-9]$/,
 } as const;
 
+/** Cartão real mantido pelo administrador como referência visual do cadastro. */
+export const DEFAULT_TEMPLATE_USERNAME = "modelo-de-apresentacao";
+
 /** Limites de texto para preservar o layout (PRD §56). */
 export const LIMITES_TEXTO = {
   profession: 60,

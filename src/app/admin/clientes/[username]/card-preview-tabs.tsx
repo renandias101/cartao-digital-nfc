@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { type KeyboardEvent, useId, useRef, useState } from "react";
 
 import { DigitalCard } from "@/components/digital-card";
 import cardStyles from "@/components/digital-card.module.css";
@@ -25,12 +25,26 @@ export function CardPreviewTabs({
 }) {
   const [aba, setAba] = useState<Aba>(publicado ? "publicado" : "rascunho");
   const base = useId();
+  const tabsRef = useRef<Array<HTMLButtonElement | null>>([]);
   const conteudo = aba === "publicado" ? publicado : rascunho;
+  const abas = ["publicado", "rascunho"] as const;
+
+  function navegar(event: KeyboardEvent<HTMLButtonElement>, indice: number) {
+    let proximo: number | null = null;
+    if (event.key === "ArrowRight") proximo = (indice + 1) % abas.length;
+    if (event.key === "ArrowLeft") proximo = (indice - 1 + abas.length) % abas.length;
+    if (event.key === "Home") proximo = 0;
+    if (event.key === "End") proximo = abas.length - 1;
+    if (proximo === null) return;
+    event.preventDefault();
+    setAba(abas[proximo]!);
+    tabsRef.current[proximo]?.focus();
+  }
 
   return (
     <div className="flex flex-col gap-3">
       <div role="tablist" aria-label="Versão do cartão" className="inline-flex w-fit gap-1 rounded-xl border border-border bg-muted/50 p-1">
-        {(["publicado", "rascunho"] as const).map((valor) => (
+        {abas.map((valor, indice) => (
           <button
             key={valor}
             type="button"
@@ -38,6 +52,9 @@ export function CardPreviewTabs({
             id={`${base}-${valor}`}
             aria-selected={aba === valor}
             aria-controls={`${base}-painel`}
+            tabIndex={aba === valor ? 0 : -1}
+            ref={(elemento) => { tabsRef.current[indice] = elemento; }}
+            onKeyDown={(event) => navegar(event, indice)}
             onClick={() => setAba(valor)}
             className={`min-h-9 rounded-lg px-4 text-sm font-medium transition-colors ${
               aba === valor ? "bg-card text-foreground shadow-sm" : "text-zinc-600 hover:text-foreground"

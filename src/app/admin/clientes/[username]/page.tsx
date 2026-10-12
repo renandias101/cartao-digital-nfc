@@ -11,6 +11,7 @@ import {
   NotesForm,
   RenewForm,
   ResetPasswordForm,
+  UsernameChangeForm,
 } from "@/app/admin/clientes/[username]/client-actions";
 import { CopyButton } from "@/components/copy-button";
 import {
@@ -42,7 +43,7 @@ import { formatarWhatsapp, linkWhatsapp } from "@/lib/admin/contacts";
 import { rotuloFormaPagamento } from "@/lib/admin/payments";
 import { getActor } from "@/lib/auth/session";
 import { urlPublicaDoCartao } from "@/lib/env";
-import { dias, diasAte, formatarCentavos, formatarData, formatarDataHora } from "@/lib/format";
+import { dias, diasAte, formatarCentavos, formatarData, formatarDataHora, formatarDataVencimento } from "@/lib/format";
 import { listarPedidosSuporte } from "@/lib/support/support-server";
 import { getCardFooter } from "@/lib/system/card-footer-server";
 
@@ -61,13 +62,14 @@ const NOMES_ACAO: Record<string, string> = {
   card_published: "Cartão publicado pelo administrador",
   card_draft_discarded: "Alterações descartadas pelo administrador",
   payment_recorded: "Pagamento registrado",
+  username_changed: "URL pública alterada",
 };
 
 /** Complemento do histórico a partir do `detail` gravado pelo banco. */
 function detalheDoHistorico(action: string, detail: unknown): string | null {
   const d = (detail && typeof detail === "object" ? detail : {}) as Record<string, unknown>;
   if (action === "renewed" && typeof d.months === "number") {
-    const novo = typeof d.new_expires_at === "string" ? ` — novo vencimento ${formatarData(d.new_expires_at)}` : "";
+    const novo = typeof d.new_expires_at === "string" ? ` — novo vencimento ${formatarDataVencimento(d.new_expires_at)}` : "";
     return `${d.months} meses${novo}`;
   }
   if (action === "payment_recorded" && typeof d.months === "number") {
@@ -78,6 +80,9 @@ function detalheDoHistorico(action: string, detail: unknown): string | null {
   }
   if (action === "client_created" && typeof d.package_months === "number") return `pacote de ${d.package_months} meses`;
   if (action === "client_updated" && d.campo === "full_name") return "nome do cliente";
+  if (action === "username_changed" && typeof d.previous_username === "string" && typeof d.new_username === "string") {
+    return `@${d.previous_username} → @${d.new_username}`;
+  }
   return null;
 }
 
@@ -95,15 +100,16 @@ export default async function DetalheClientePage(props: PageProps<"/admin/client
   const cliente = await buscarClientePorUsername(username);
   if (!cliente) notFound();
 
-  const [observacoes, historico, conteudos, pedidos, contatos, pagamentos, footer] = await Promise.all([
+  const [observacoes, historico, conteudos, resultadoPedidos, contatos, pagamentos, footer] = await Promise.all([
     buscarObservacoes(cliente.id),
-    historicoDoCliente(cliente.username),
+    historicoDoCliente(cliente.id),
     buscarConteudosDoCartao(cliente.id),
-    listarPedidosSuporte({ clientId: cliente.id, limite: 10 }),
+    listarPedidosSuporte({ clientId: cliente.id, pagina: 1, porPagina: 10 }),
     buscarContatos(cliente.id),
     listarPagamentos(cliente.id),
     getCardFooter(),
   ]);
+  const pedidos = resultadoPedidos?.pedidos ?? null;
   const urlCartao = urlPublicaDoCartao(cliente.username);
   const saude = avaliarSaudeDoCartao({
     status: cliente.status,
@@ -121,7 +127,7 @@ export default async function DetalheClientePage(props: PageProps<"/admin/client
         : "cancelado";
   const assinatura = [
     { rotulo: "Situação", valor: situacao },
-    { rotulo: "Vencimento", valor: formatarData(cliente.expires_at) },
+    { rotulo: "Último dia de validade", valor: formatarDataVencimento(cliente.expires_at) },
     { rotulo: "Pacote atual", valor: `${cliente.package_months} meses` },
     { rotulo: "Última renovação", valor: cliente.last_renewed_at ? formatarData(cliente.last_renewed_at) : "—" },
     { rotulo: "Cliente desde", valor: formatarData(cliente.created_at) },
@@ -279,6 +285,14 @@ export default async function DetalheClientePage(props: PageProps<"/admin/client
         </section>
       </div>
 
+      <section aria-labelledby="titulo-url" className="ui-card flex flex-col gap-4 p-5 sm:p-6">
+        <div>
+          <h2 id="titulo-url" className="ui-card-title">URL pública</h2>
+          <p className="ui-hint mt-1">Somente o administrador pode alterar este endereço. O acesso do cliente permanece ligado à mesma conta.</p>
+        </div>
+        <UsernameChangeForm clientId={cliente.id} username={cliente.username} currentUrl={urlCartao} />
+      </section>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <section aria-labelledby="titulo-pagamentos" className="ui-card flex flex-col gap-4 p-5 sm:p-6">
           <h2 id="titulo-pagamentos" className="ui-card-title">
@@ -365,7 +379,7 @@ export default async function DetalheClientePage(props: PageProps<"/admin/client
                 renovando o cliente.
               </p>
             </div>
-            <CancelButton clientId={cliente.id} username={cliente.username} />
+            <CancelButton clientId={cliente.id} username={cliente.username} clientName={cliente.full_name} />
           </section>
         ) : null}
       </div>

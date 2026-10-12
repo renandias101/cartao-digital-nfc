@@ -33,12 +33,12 @@ export async function getDraft(): Promise<CardContent | null> {
  * Validação do rascunho no modo permissivo, a mesma para o cliente
  * (`saveDraft`) e para o administrador (`lib/admin/card-editing`).
  */
-export function validarRascunho(content: CardContent): ResultadoSalvar {
+export function validarRascunho(content: unknown): ResultadoSalvar {
   const validacaoCartao = validarConteudoCartao(content, false);
   if (!validacaoCartao.valido) {
     return { ok: false, mensagem: validacaoCartao.mensagem };
   }
-  const validacaoBotoes = validarBotoes(content.buttons);
+  const validacaoBotoes = validarBotoes((content as Record<string, unknown>).buttons);
   if (!validacaoBotoes.valido) {
     return { ok: false, mensagem: validacaoBotoes.mensagem };
   }
@@ -54,7 +54,7 @@ export function validarRascunho(content: CardContent): ResultadoSalvar {
  * continua sendo quem de fato impede gravar algo inválido, path nenhum
  * escapa dele.
  */
-export async function saveDraft(content: CardContent): Promise<ResultadoSalvar> {
+export async function saveDraft(content: unknown): Promise<ResultadoSalvar> {
   const validacao = validarRascunho(content);
   if (!validacao.ok) return validacao;
 
@@ -64,13 +64,18 @@ export async function saveDraft(content: CardContent): Promise<ResultadoSalvar> 
     return { ok: false, mensagem: "Sessão expirada. Faça login novamente." };
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("card_drafts")
     .update({ content })
-    .eq("client_id", userData.user.id);
+    .eq("client_id", userData.user.id)
+    .select("client_id")
+    .maybeSingle();
 
   if (error) {
     return { ok: false, mensagem: "Não foi possível salvar. Tente novamente." };
+  }
+  if (!data) {
+    return { ok: false, mensagem: "O rascunho não foi salvo. Sua conta pode ter vencido ou sido cancelada. O conteúdo desta tela foi mantido." };
   }
   return { ok: true };
 }

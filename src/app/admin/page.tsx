@@ -9,6 +9,7 @@ import { FILTROS_ADICIONAIS, FILTROS_PRINCIPAIS, lerFiltro, rotuloDoFiltro, type
 import { getActor } from "@/lib/auth/session";
 import { urlPublicaDoCartao } from "@/lib/env";
 import { dias, formatarData } from "@/lib/format";
+import { normalizarPagina } from "@/lib/pagination";
 
 const NOMES_STATUS: Record<string, string> = { active: "Ativo", expired: "Vencido", cancelled: "Cancelado" };
 
@@ -65,13 +66,19 @@ export default async function AdminPage(props: PageProps<"/admin">) {
   const sp = await props.searchParams;
   const filtro = lerFiltro(sp.filtro);
   const busca = typeof sp.busca === "string" ? sp.busca : "";
-  const pagina = Number(sp.pagina) || 1;
+  const paginaBruta = typeof sp.pagina === "string" ? Number(sp.pagina) : 1;
+  const pagina = normalizarPagina(sp.pagina);
   const excluido = typeof sp.excluido === "string" ? sp.excluido : null;
 
   const [{ clientes, total, totalPaginas }, contagens] = await Promise.all([
     listarClientes({ filtro, busca, pagina }),
     contarAtencao(),
   ]);
+  if ((typeof sp.pagina === "string" && paginaBruta !== pagina) || pagina > totalPaginas) {
+    const destino = Math.min(pagina, totalPaginas);
+    const query = montarQuery({ filtro, busca, pagina: String(destino) }, {});
+    redirect(`/admin?${query}`);
+  }
   const atencao = contagens ? itensDeAtencao(contagens) : [];
   const baseQuery = { filtro, busca, pagina: String(pagina) };
   const filtroAdicionalAtivo = FILTROS_ADICIONAIS.some((f) => f.valor === filtro);

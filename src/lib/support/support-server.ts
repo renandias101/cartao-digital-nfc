@@ -10,6 +10,7 @@ import {
   type PrioridadeSuporte,
 } from "@/lib/support/categories";
 import { ENVIOS_SUPORTE_POR_HORA, validarSuporte, type SupportInput, type SupportKind } from "@/lib/support/support";
+import { normalizarPagina, totalDePaginas } from "@/lib/pagination";
 
 export type Resultado = { ok: true } | { ok: false; mensagem: string };
 
@@ -72,21 +73,24 @@ export type PedidoSuporte = {
 export async function listarPedidosSuporte(filtro: {
   status?: "open" | "resolved";
   clientId?: string;
-  limite?: number;
-}): Promise<PedidoSuporte[] | null> {
+  pagina?: number;
+  porPagina?: number;
+}): Promise<{ pedidos: PedidoSuporte[]; total: number; totalPaginas: number } | null> {
   const supabase = await createSupabaseServerClient();
+  const pagina = normalizarPagina(filtro.pagina);
+  const porPagina = Math.max(1, Math.min(filtro.porPagina ?? 20, 100));
   let consulta = supabase
     .from("support_requests")
-    .select("id, kind, message, error_text, status, created_at, resolved_at, category, priority, admin_note, clients(full_name, username)");
+    .select("id, kind, message, error_text, status, created_at, resolved_at, category, priority, admin_note, clients(full_name, username)", { count: "exact" });
   if (filtro.status) consulta = consulta.eq("status", filtro.status);
   if (filtro.clientId) consulta = consulta.eq("client_id", filtro.clientId);
   // Prioridade alta primeiro; dentro dela, mais novos no topo.
-  const { data, error } = await consulta
+  const { data, error, count } = await consulta
     .order("priority", { ascending: true })
     .order("created_at", { ascending: false })
-    .limit(filtro.limite ?? 100);
-  if (error || !data) return null;
-  return data.map((row) => {
+    .range((pagina - 1) * porPagina, pagina * porPagina - 1);
+  if (error || !data || count === null) return null;
+  const pedidos: PedidoSuporte[] = data.map((row) => {
     const cliente = Array.isArray(row.clients) ? row.clients[0] : row.clients;
     return {
       id: row.id,
@@ -99,20 +103,21 @@ export async function listarPedidosSuporte(filtro: {
       categoria: categoriaEfetiva(row.category, row.kind),
       categoriaRotulo: rotuloCategoria(categoriaEfetiva(row.category, row.kind)),
       classificado: row.category !== null,
-      priority: row.priority === "alta" ? "alta" : "normal",
+      priority: row.priority === "alta" ? ("alta" as const) : ("normal" as const),
       adminNote: row.admin_note,
       cliente: cliente ? { nome: cliente.full_name, username: cliente.username } : null,
     };
   });
+  return { pedidos, total: count, totalPaginas: totalDePaginas(count, porPagina) };
 }
 
-export async function contarPedidosAbertos(): Promise<number> {
+export async function contarPedidosAbertos(): Promise<number | null> {
   const supabase = await createSupabaseServerClient();
-  const { count } = await supabase
+  const { count, error } = await supabase
     .from("support_requests")
     .select("id", { count: "exact", head: true })
     .eq("status", "open");
-  return count ?? 0;
+  return error || count === null ? null : count;
 }
 
 /**

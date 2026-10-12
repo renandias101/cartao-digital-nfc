@@ -8,6 +8,7 @@ import { ImageCropDialog } from "@/app/painel/editor/image-crop-dialog";
 import { IconImage, IconTrash, IconUpload, IconUser } from "@/components/icons";
 import type { PropositoImagem } from "@/lib/card/images";
 import { validateImageFile } from "@/lib/card/image-upload";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { DURACAO_LEGENDA, useTransientMessage } from "@/components/use-transient-message";
 import styles from "./editor.module.css";
 
@@ -48,7 +49,7 @@ export function ImageField({
   recomendacao?: string;
   rotuloTrocar?: string;
 }) {
-  const { enviarImagem } = useEditorActions();
+  const { prepararImagem, processarImagem } = useEditorActions();
   const [erro, setErro] = useState<string | null>(null);
   const erroVisivel = useTransientMessage(erro, DURACAO_LEGENDA.erro);
   const [pending, startTransition] = useTransition();
@@ -69,11 +70,15 @@ export function ImageField({
     const validationError = validateImageFile(arquivo);
     setErro(validationError);
     if (validationError) return;
-    const formData = new FormData();
-    formData.set("file", arquivo);
     startTransition(async () => {
       try {
-        const resultado = await enviarImagem(proposito, formData, buttonId);
+        const preparacao = await prepararImagem(proposito, buttonId);
+        if (!preparacao.ok) { setErro(preparacao.mensagem); return; }
+        const { error: uploadError } = await createSupabaseBrowserClient().storage
+          .from("card-images")
+          .uploadToSignedUrl(preparacao.path, preparacao.token, arquivo, { contentType: arquivo.type });
+        if (uploadError) { setErro("O envio foi interrompido. A imagem anterior foi mantida. Tente novamente."); return; }
+        const resultado = await processarImagem(preparacao.path, proposito, buttonId);
         if (!resultado.ok) {
           setErro(resultado.mensagem);
           return;

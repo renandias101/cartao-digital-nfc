@@ -24,9 +24,9 @@ const NAV: NavItem[] = [
  */
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const actor = await getActor();
-  const abertos = actor.logado && actor.isAdmin ? await contarPedidosAbertos() : 0;
+  const abertos = actor.logado && actor.isAdmin ? await contarPedidosAbertos() : null;
   const nav = NAV.map((item) =>
-    item.href === "/admin/suporte" ? { ...item, badge: { count: abertos, label: "pedidos abertos" } } : item,
+    item.href === "/admin/suporte" && abertos !== null ? { ...item, badge: { count: abertos, label: "pedidos abertos" } } : item,
   );
   return (
     <AppShell nav={nav} logoutAction={logoutAction}>

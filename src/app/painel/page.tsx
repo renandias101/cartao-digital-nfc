@@ -12,6 +12,7 @@ import { getDraft } from "@/lib/card/draft";
 import { getActor } from "@/lib/auth/session";
 import { publicEnv, urlPublicaDoCartao } from "@/lib/env";
 import { getCardFooter } from "@/lib/system/card-footer-server";
+import { formatarDataVencimento } from "@/lib/format";
 
 function linkWhatsapp(): string {
   const mensagem = encodeURIComponent("Olá, gostaria de renovar meu cartão digital.");
@@ -57,7 +58,7 @@ export default async function PainelPage() {
     <main className={editorStyles.page}>
       <EditorHeader
         status={painel.status}
-        expiresAt={new Date(painel.expiresAt).toLocaleDateString("pt-BR")}
+        expiresAt={formatarDataVencimento(painel.expiresAt)}
         publicUrl={url}
         publicPath={`/${painel.username}`}
         accountAction={

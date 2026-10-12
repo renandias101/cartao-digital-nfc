@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 
 import {
+  alterarUsernameAction,
   cancelarAction,
   excluirAction,
+  registrarAuditoriaSenhaAction,
   renovarAction,
   resetSenhaAction,
   salvarDadosAction,
@@ -12,6 +14,7 @@ import {
   type AcaoState,
 } from "@/app/admin/clientes/[username]/actions";
 import { DURACAO_LEGENDA, useTransientMessage } from "@/components/use-transient-message";
+import { ConfirmDialog } from "@/app/painel/editor/confirm-dialog";
 import { FORMAS_PAGAMENTO } from "@/lib/admin/payments";
 
 const ESTADO_INICIAL: AcaoState = { ok: null, mensagem: null };
@@ -81,17 +84,42 @@ export function RenewForm({ clientId, username, hoje }: { clientId: string; user
   );
 }
 
+function AuditRetry({ clientId }: { clientId: string }) {
+  const [estado, action, pending] = useActionState(registrarAuditoriaSenhaAction.bind(null, clientId), ESTADO_INICIAL);
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <button type="submit" formAction={action} formNoValidate disabled={pending} className="ui-btn ui-btn-outline ui-btn-sm">
+        {pending ? "Registrando…" : "Tentar registrar auditoria novamente"}
+      </button>
+      <Mensagem estado={estado} />
+    </div>
+  );
+}
+
 /** Cancelar manualmente, de qualquer status (PRD §33, decisão P3). */
-export function CancelButton({ clientId, username }: { clientId: string; username: string }) {
+export function CancelButton({ clientId, username, clientName }: { clientId: string; username: string; clientName: string }) {
   const acao = cancelarAction.bind(null, clientId, username);
   const [estado, formAction, pending] = useActionState(acao, ESTADO_INICIAL);
+  const [confirmando, setConfirmando] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   return (
-    <form action={formAction} className="flex flex-col gap-3">
-      <button type="submit" disabled={pending} className="ui-btn ui-btn-outline w-fit">
+    <form ref={formRef} action={formAction} className="flex flex-col gap-3">
+      <button type="button" onClick={() => setConfirmando(true)} disabled={pending} className="ui-btn ui-btn-outline w-fit">
         {pending ? "Cancelando…" : "Cancelar cliente"}
       </button>
       <Mensagem estado={estado} />
+      <ConfirmDialog
+        open={confirmando}
+        title={`Cancelar ${clientName}?`}
+        description={`O cartão de @${username} sairá do ar imediatamente e visitantes verão uma página neutra. Para reativá-lo, será necessário renovar o cliente.`}
+        confirmLabel="Sim, cancelar cliente"
+        onCancel={() => setConfirmando(false)}
+        onConfirm={() => {
+          setConfirmando(false);
+          formRef.current?.requestSubmit();
+        }}
+      />
     </form>
   );
 }
@@ -142,13 +170,14 @@ export function ResetPasswordForm({ clientId, username }: { clientId: string; us
         </button>
       </div>
       <Mensagem estado={estado} />
+      {estado.auditoriaPendente ? <AuditRetry clientId={clientId} /> : null}
     </form>
   );
 }
 
 /**
  * Dados administrativos: nome (uso interno) e contato. Nada disso vai para o
- * cartão, o vCard ou o painel do cliente. O nome de usuário e a URL não mudam.
+ * cartão, o vCard ou o painel do cliente.
  */
 export function ClientDataForm({
   clientId,
@@ -187,12 +216,97 @@ export function ClientDataForm({
       </div>
       <p className="ui-hint">
         Uso interno, para falar com o cliente sobre renovação e suporte. Não aparece no cartão nem para o cliente.
-        O nome de usuário (@{username}) e a URL do cartão não mudam.
+        O cliente não pode alterar seu nome de usuário. A mudança administrativa da URL fica na seção própria.
       </p>
       <button type="submit" disabled={pending} className="ui-btn ui-btn-outline w-fit">
         {pending ? "Salvando…" : "Salvar dados"}
       </button>
       <Mensagem estado={estado} />
+    </form>
+  );
+}
+
+export function UsernameChangeForm({
+  clientId,
+  username,
+  currentUrl,
+}: {
+  clientId: string;
+  username: string;
+  currentUrl: string;
+}) {
+  const acao = alterarUsernameAction.bind(null, clientId, username);
+  const [estado, formAction, pending] = useActionState(acao, ESTADO_INICIAL);
+  const [novoUsername, setNovoUsername] = useState("");
+  const [confirmando, setConfirmando] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmadoRef = useRef(false);
+  const origin = currentUrl.slice(0, currentUrl.length - username.length);
+  const newUrl = `${origin}${novoUsername.trim().toLowerCase()}`;
+
+  return (
+    <form
+      ref={formRef}
+      action={formAction}
+      className="flex flex-col gap-3"
+      onSubmit={(event) => {
+        if (!confirmadoRef.current) {
+          event.preventDefault();
+          if (formRef.current?.reportValidity()) setConfirmando(true);
+        } else {
+          confirmadoRef.current = false;
+        }
+      }}
+    >
+      <div className="space-y-1.5">
+        <label htmlFor="new_username" className="ui-label">Novo endereço público</label>
+        <div className="flex min-w-0 items-stretch">
+          <span
+            aria-hidden="true"
+            className="flex min-h-11 max-w-[65%] items-center rounded-l-xl border border-r-0 border-border bg-muted px-3 text-sm text-muted-foreground"
+          >
+            <span className="truncate">{origin}</span>
+          </span>
+          <input
+            id="new_username"
+            name="new_username"
+            required
+            minLength={3}
+            maxLength={32}
+            pattern="[a-z0-9](-?[a-z0-9])*"
+            title="Digite somente o nome após a barra: letras minúsculas, números e hífen."
+            aria-describedby="new-username-help"
+            autoComplete="off"
+            value={novoUsername}
+            onChange={(event) => setNovoUsername(event.target.value.toLowerCase())}
+            className="ui-input min-w-0 rounded-l-none"
+          />
+        </div>
+        <p id="new-username-help" className="ui-hint">
+          Digite somente o trecho depois de “/”. O domínio do sistema é fixo.
+        </p>
+      </div>
+      <dl className="grid gap-2 text-sm">
+        <div><dt className="text-muted-foreground">URL atual</dt><dd className="break-all font-medium">{currentUrl}</dd></div>
+        <div><dt className="text-muted-foreground">Nova URL</dt><dd className="break-all font-medium">{novoUsername ? newUrl : "—"}</dd></div>
+      </dl>
+      <p className="ui-hint">A URL atual continuará funcionando como alias permanente e nunca poderá ser usada por outro cliente.</p>
+      <button type="submit" disabled={pending} className="ui-btn ui-btn-outline w-fit">
+        {pending ? "Alterando…" : "Alterar URL pública"}
+      </button>
+      <Mensagem estado={estado} />
+      <ConfirmDialog
+        open={confirmando}
+        title="Confirmar alteração da URL pública?"
+        description={`URL atual: ${currentUrl}. Nova URL: ${newUrl}. O endereço antigo continuará abrindo este cartão permanentemente.`}
+        confirmLabel="Sim, alterar URL"
+        onCancel={() => setConfirmando(false)}
+        onConfirm={() => {
+          confirmadoRef.current = true;
+          setConfirmando(false);
+          formRef.current?.requestSubmit();
+        }}
+      />
     </form>
   );
 }

@@ -3,8 +3,17 @@ import "server-only";
 import { SENHA_MINIMA } from "@/lib/auth/constants";
 import { getActor } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export type ResultadoResetSenha = { ok: true } | { ok: false; mensagem: string };
+export type ResultadoResetSenha = { ok: true; auditoriaPendente?: boolean } | { ok: false; mensagem: string };
+
+export async function registrarAuditoriaResetSenha(clientId: string): Promise<boolean> {
+  const actor = await getActor();
+  if (!actor.logado || !actor.isAdmin) return false;
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("admin_log_password_reset", { p_client_id: clientId });
+  return !error;
+}
 
 /**
  * Administrador redefine a senha de um cliente (PRD §4: "o administrador
@@ -15,7 +24,7 @@ export type ResultadoResetSenha = { ok: true } | { ok: false; mensagem: string }
  */
 export async function redefinirSenha(
   clientId: string,
-  username: string,
+  _username: string,
   novaSenha: string,
 ): Promise<ResultadoResetSenha> {
   const actor = await getActor();
@@ -32,12 +41,7 @@ export async function redefinirSenha(
     return { ok: false, mensagem: "Não foi possível redefinir a senha. Tente novamente." };
   }
 
-  await admin.from("admin_audit_log").insert({
-    action: "password_reset",
-    client_id: clientId,
-    client_username: username,
-    actor_id: actor.userId,
-  });
+  const auditoriaRegistrada = await registrarAuditoriaResetSenha(clientId);
 
-  return { ok: true };
+  return { ok: true, auditoriaPendente: !auditoriaRegistrada };
 }

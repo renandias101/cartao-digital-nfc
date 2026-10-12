@@ -10,12 +10,13 @@
     "typecheck": "tsc --noEmit",
     "test:editor": "tsx --test tests/editor-regressions.test.ts",
     "test:editor:browser": "node --test tests/editor-browser.test.mjs",
+    "test:admin": "tsx --test tests/admin-regressions.test.ts",
     "test:rls": "tsx supabase/tests/rls.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.2",
-    "next": "16.3.7",
+    "next": "16.3.8",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "sharp": "0.35.5"
@@ -27,7 +28,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.7",
+    "eslint-config-next": "16.3.8",
     "supabase": "2.118.0",
     "tailwindcss": "^4",
     "tsx": "4.23.15",

@@ -8,6 +8,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 const CREDENCIAIS_INVALIDAS = "Usuário ou senha inválidos.";
 /** Mensagem específica só para o bloqueio do próprio throttle — não confirma se a conta existe. */
 const MUITAS_TENTATIVAS = "Muitas tentativas. Tente novamente em alguns minutos.";
+const PROTECAO_INDISPONIVEL = "Não foi possível verificar a segurança do acesso. Tente novamente em alguns minutos.";
 
 const LIMITE_USERNAME = 64;
 const LIMITE_SENHA = 200;
@@ -41,14 +42,18 @@ export async function tentarLogin(
 
   const admin = createSupabaseAdminClient();
 
-  const { data: bloqueio } = await admin.rpc("check_login_lock", {
+  const { data: bloqueio, error: erroBloqueio } = await admin.rpc("check_login_lock", {
     p_username: username,
   });
+  if (erroBloqueio) {
+    console.error("Falha ao consultar proteção de tentativas de login.");
+    return { ok: false, mensagem: PROTECAO_INDISPONIVEL };
+  }
   if (bloqueio) {
     return { ok: false, mensagem: MUITAS_TENTATIVAS };
   }
 
-  const { data: identidade } = await admin
+  const { data: identidade, error: erroIdentidade } = await admin
     .rpc("resolve_login_identity", { p_username: username })
     .maybeSingle()
     // O projeto ainda não gera tipos do banco (`supabase gen types`); este é
@@ -58,14 +63,23 @@ export async function tentarLogin(
     // reduzida (objeto), não o array anterior — inverter dá erro de tipo.
     .overrideTypes<{ user_id: string; email: string }>();
 
+  if (erroIdentidade) {
+    console.error("Falha ao resolver identidade de login.");
+    return { ok: false, mensagem: PROTECAO_INDISPONIVEL };
+  }
+
   if (!identidade) {
     // Username não existe. Ainda assim registra a falha, para que testar
     // nomes ao acaso também fique sujeito ao mesmo bloqueio.
-    await admin.rpc("register_login_failure", {
+    const { error: erroRegistro } = await admin.rpc("register_login_failure", {
       p_username: username,
       p_max_attempts: LOGIN_THROTTLE.maxTentativas,
       p_lock_minutes: LOGIN_THROTTLE.bloqueioMinutos,
     });
+    if (erroRegistro) {
+      console.error("Falha ao registrar tentativa de login para identidade inexistente.");
+      return { ok: false, mensagem: PROTECAO_INDISPONIVEL };
+    }
     return { ok: false, mensagem: CREDENCIAIS_INVALIDAS };
   }
 
@@ -76,7 +90,7 @@ export async function tentarLogin(
   });
 
   if (erroLogin) {
-    const { data: falha } = await admin
+    const { data: falha, error: erroRegistro } = await admin
       .rpc("register_login_failure", {
         p_username: username,
         p_max_attempts: LOGIN_THROTTLE.maxTentativas,
@@ -84,20 +98,38 @@ export async function tentarLogin(
       })
       .maybeSingle()
       .overrideTypes<{ failed_count: number; locked_until: string | null }>();
+    if (erroRegistro) {
+      console.error("Falha ao registrar tentativa de login.");
+      return { ok: false, mensagem: PROTECAO_INDISPONIVEL };
+    }
 
     // Bloqueio reforçado na própria conta: mesmo que alguém chame a API do
     // Supabase direto, ignorando esta Server Action, a conta segue banida.
     if (falha?.locked_until) {
-      await admin.auth.admin.updateUserById(identidade.user_id, {
+      const { error: erroBanimento } = await admin.auth.admin.updateUserById(identidade.user_id, {
         ban_duration: `${LOGIN_THROTTLE.bloqueioMinutos}m`,
       });
+      if (erroBanimento) {
+        console.error("Falha ao aplicar banimento temporário após limite de login.");
+        return { ok: false, mensagem: PROTECAO_INDISPONIVEL };
+      }
     }
 
     return { ok: false, mensagem: CREDENCIAIS_INVALIDAS };
   }
 
-  await admin.rpc("register_login_success", { p_username: username });
+  const { error: erroLimpeza } = await admin.rpc("register_login_success", { p_username: username });
+  if (erroLimpeza) {
+    console.error("Falha ao limpar tentativas após autenticação.");
+    await supabase.auth.signOut();
+    return { ok: false, mensagem: PROTECAO_INDISPONIVEL };
+  }
 
-  const { data: isAdmin } = await supabase.rpc("am_i_admin");
+  const { data: isAdmin, error: erroPapel } = await supabase.rpc("am_i_admin");
+  if (erroPapel) {
+    console.error("Falha ao verificar papel após autenticação.");
+    await supabase.auth.signOut();
+    return { ok: false, mensagem: PROTECAO_INDISPONIVEL };
+  }
   return { ok: true, isAdmin: Boolean(isAdmin) };
 }

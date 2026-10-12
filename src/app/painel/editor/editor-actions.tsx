@@ -3,7 +3,8 @@
 import { createContext, useContext } from "react";
 
 import {
-  enviarImagemAction,
+  prepararImagemAction,
+  processarImagemAction,
   publicarAction,
   restaurarAction,
   salvarRascunhoAction,
@@ -23,14 +24,16 @@ export type EditorActions = {
   salvarRascunho: (content: CardContent) => Promise<EstadoAcao>;
   publicar: () => Promise<EstadoAcao>;
   restaurar: () => Promise<EstadoAcao>;
-  enviarImagem: (proposito: PropositoImagem, formData: FormData, buttonId?: string) => Promise<ResultadoUploadAction>;
+  prepararImagem: (proposito: PropositoImagem, buttonId?: string) => Promise<{ ok: true; path: string; token: string } | { ok: false; mensagem: string }>;
+  processarImagem: (path: string, proposito: PropositoImagem, buttonId?: string) => Promise<ResultadoUploadAction>;
 };
 
 export const ACOES_DO_CLIENTE: EditorActions = {
   salvarRascunho: salvarRascunhoAction,
   publicar: publicarAction,
   restaurar: restaurarAction,
-  enviarImagem: enviarImagemAction,
+  prepararImagem: prepararImagemAction,
+  processarImagem: processarImagemAction,
 };
 
 const EditorActionsContext = createContext<EditorActions>(ACOES_DO_CLIENTE);

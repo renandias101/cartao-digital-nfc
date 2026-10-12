@@ -4,8 +4,9 @@ import { construirEmailSintetico } from "@/lib/auth/email";
 import { SENHA_MINIMA } from "@/lib/auth/constants";
 import { getActor } from "@/lib/auth/session";
 import type { CardContent } from "@/lib/card/types";
-import { aplicarModelo, buscarModelo, duplicarConteudoSemDadosPessoais } from "@/lib/card/templates";
+import { duplicarConteudoSemDadosPessoais } from "@/lib/card/templates";
 import { LIMITES_TEXTO, USERNAME } from "@/lib/constants";
+import type { DadosPagamento } from "@/lib/admin/payments";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type ResultadoCriarCliente =
@@ -26,10 +27,9 @@ export async function criarCliente(input: {
   fullName: string;
   packageMonths: number;
   password: string;
-  /** PRD §54: um dos presets de `CARD_TEMPLATES`. Ignorado se `duplicateFromUsername` também vier. */
-  templateId?: string;
   /** PRD §55: reaproveita a aparência de um cliente existente — nunca o dado pessoal dele. */
   duplicateFromUsername?: string;
+  payment: DadosPagamento;
 }): Promise<ResultadoCriarCliente> {
   const actor = await getActor();
   if (!actor.logado || !actor.isAdmin) {
@@ -57,12 +57,13 @@ export async function criarCliente(input: {
   // Checagem de disponibilidade (PRD §6). A UNIQUE constraint e o gatilho de
   // reservados no banco são a garantia final — isto é só para devolver uma
   // mensagem clara em vez de um erro de constraint.
-  const [{ data: existente }, { data: reservado }] = await Promise.all([
+  const [{ data: existente }, { data: reservado }, { data: alias }] = await Promise.all([
     admin.from("clients").select("username").eq("username", username).maybeSingle(),
     admin.from("reserved_usernames").select("username").eq("username", username).maybeSingle(),
+    admin.from("client_username_aliases").select("alias").eq("alias", username).maybeSingle(),
   ]);
-  if (existente || reservado) {
-    return { ok: false, mensagem: "Este nome de usuário já está em uso." };
+  if (existente || reservado || alias) {
+    return { ok: false, mensagem: "Este nome de usuário já está ou esteve em uso, ou é reservado." };
   }
 
   // Resolve a aparência inicial ANTES de criar a conta no Auth — se a fonte
@@ -95,12 +96,6 @@ export async function criarCliente(input: {
       return { ok: false, mensagem: "O cliente de origem não tem cartão configurado para duplicar." };
     }
     conteudoInicial = duplicarConteudoSemDadosPessoais(conteudoOrigem);
-  } else if (input.templateId) {
-    const modelo = buscarModelo(input.templateId);
-    if (!modelo) {
-      return { ok: false, mensagem: "Modelo não encontrado." };
-    }
-    conteudoInicial = aplicarModelo(modelo);
   }
 
   const email = construirEmailSintetico(username);
@@ -129,47 +124,29 @@ export async function criarCliente(input: {
     return { ok: false, mensagem: "Não foi possível calcular o vencimento. Tente novamente." };
   }
 
-  const { error: erroInsercao } = await admin.from("clients").insert({
-    id: userId,
-    username,
-    full_name: fullName,
-    package_months: input.packageMonths,
-    expires_at: expiresAt,
+  const { error: erroInsercao } = await admin.rpc("admin_create_client_record", {
+    p_client_id: userId,
+    p_username: username,
+    p_full_name: fullName,
+    p_package_months: input.packageMonths,
+    p_expires_at: expiresAt,
+    // O nome pertence sempre ao novo cliente; modelos nunca carregam dados pessoais.
+    p_content: { ...conteudoInicial, displayName: fullName },
+    p_actor_id: actor.userId,
+    p_amount_cents: input.payment.amountCents,
+    p_method: input.payment.method,
+    p_paid_on: input.payment.paidOn,
+    p_note: input.payment.note,
   });
 
   if (erroInsercao) {
-    // Desfaz a criação no Auth para não deixar conta órfã sem cliente
-    // correspondente (Padroes-de-Qualidade 9: evitar inconsistência de dados).
-    await admin.auth.admin.deleteUser(userId);
-    return { ok: false, mensagem: "Não foi possível salvar o cliente. Tente novamente." };
+    const { error: erroDesfazerAuth } = await admin.auth.admin.deleteUser(userId);
+    if (erroDesfazerAuth) {
+      console.error("Criação de cliente falhou no banco e a conta de Auth órfã não pôde ser removida.");
+      return { ok: false, mensagem: "Não foi possível salvar o cliente e a conta de acesso precisa de revisão no Supabase." };
+    }
+    return { ok: false, mensagem: "Não foi possível salvar o cliente. Nenhum dado foi gravado; tente novamente." };
   }
-
-  // Rascunho inicial (etapa 7): nome e cores pré-preenchidos, para o cliente
-  // não abrir o editor num cartão totalmente em branco. Ainda passível de
-  // alteração total — nada aqui é definitivo, e nada disto é publicado
-  // sozinho (publicar exige uma ação explícita do cliente, PRD §17).
-  const { error: erroRascunho } = await admin.from("card_drafts").insert({
-    client_id: userId,
-    // `displayName` é sempre o nome do cliente NOVO — nunca herdado de
-    // modelo ou duplicação, mesmo que `conteudoInicial` viesse de outro
-    // cliente (PRD §55: nome é dado pessoal, nunca copiado).
-    content: { ...conteudoInicial, displayName: fullName },
-  });
-
-  if (erroRascunho) {
-    await admin.from("clients").delete().eq("id", userId);
-    await admin.auth.admin.deleteUser(userId);
-    return { ok: false, mensagem: "Não foi possível preparar o cartão. Tente novamente." };
-  }
-
-  await admin.from("admin_audit_log").insert({
-    action: "client_created",
-    client_id: userId,
-    client_username: username,
-    client_full_name: fullName,
-    actor_id: actor.userId,
-    detail: { package_months: input.packageMonths, expires_at: expiresAt },
-  });
 
   return { ok: true, username };
 }

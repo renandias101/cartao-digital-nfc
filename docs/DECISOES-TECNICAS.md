@@ -1291,3 +1291,74 @@ Operação: a ferramenta de migrations do Supabase recusa `DROP POLICY`,
 removem `list_clients_for_admin` (sem uso, pendente de remoção manual).
 Pagamentos são apagados junto com o cliente (cascade): se houver obrigação
 fiscal de guardar esses registros, a regra precisa de validação.
+
+## D74 — Alteração administrativa da URL preserva aliases e identidade de login
+
+A regra anterior de URL imutável foi substituída por decisão explícita do
+produto em 10/10/2026: o cliente continua sem permissão para alterar o nome de
+usuário, mas o administrador pode fazê-lo. Cada nome anterior é gravado em
+`client_username_aliases` e permanece reservado para sempre. O alias resolve o
+mesmo conteúdo publicado e passa pela mesma verificação de status da URL atual;
+após a exclusão, continua existindo sem `client_id` e leva à página neutra.
+
+`admin_change_client_username` confere o administrador no banco, bloqueia o
+novo slug para evitar corridas e grava alias, novo username e auditoria na mesma
+transação. Falha em qualquer etapa desfaz todas as mudanças. A tabela de aliases
+tem RLS forçada e nenhum acesso direto para `anon` ou `authenticated`.
+
+O e-mail sintético criado no Supabase Auth não é alterado. A resolução de login
+usa o username atual para localizar o `id` do cliente e devolve o e-mail real de
+`auth.users`; assim a senha, sessão e conta existentes continuam válidas depois
+da troca. Nomes antigos são aliases públicos e não identidades de login.
+
+Na interface, a origem definida por `NEXT_PUBLIC_SITE_URL` é exibida como
+prefixo fixo. Em deploy na Vercel, `VERCEL_PROJECT_PRODUCTION_URL` substitui
+automaticamente o valor local e usa o domínio de produção; um domínio definido
+explicitamente em `NEXT_PUBLIC_SITE_URL` continua tendo prioridade. O
+administrador edita somente o slug depois da barra; servidor e banco continuam
+recusando protocolo, domínio, barras e qualquer formato fora da regra de
+username.
+
+## D75 — Pagamento inicial opcional integra a transação de cadastro
+
+O formulário de novo cliente oferece o mesmo registro opcional de pagamento da
+renovação: valor, forma, data e observação. A função
+`admin_create_client_record` grava cliente, rascunho inicial, auditoria de
+criação, pagamento e auditoria do pagamento numa única transação. Qualquer
+falha relacional desfaz o conjunto; o servidor então remove a conta recém-criada
+no Auth, conforme a recuperação já adotada pelo cadastro.
+
+## D76 — O cartão `modelo-de-apresentacao` é o modelo padrão do cadastro
+
+“Usar um modelo” copia sempre a aparência do cartão real
+`modelo-de-apresentacao`, permitindo que o administrador atualize esse padrão
+pelo editor normal. “Duplicar aparência” lista todos os clientes em lotes e
+exibe cada origem como botão com nome e username. A opção marcada é interpretada
+novamente no servidor; no modelo padrão, o servidor ignora uma origem enviada
+pelo navegador e força `modelo-de-apresentacao`.
+
+Os dois caminhos passam por `duplicarConteudoSemDadosPessoais`: preservam
+somente cores e estrutura visual, substituem o conteúdo dos botões por exemplos
+e nunca copiam nome, descrição, imagens, contatos, PIX, Wi-Fi ou endereços.
+
+## D77 — Imagens privadas, envio direto e leitura autorizada
+
+**Data:** 10/10/2026 · **Origem:** auditoria pré-deploy A01–A03
+
+O bucket `card-images` passa a ser privado. O navegador recebe do servidor uma
+autorização curta para enviar o arquivo a `_staging/{client_id}` diretamente ao
+Storage, evitando o limite de corpo das Functions da Vercel. O servidor baixa a
+preparação, decodifica os bytes com Sharp, converte para WebP e cria um nome
+versionado sem `upsert`. Clientes não têm políticas de alteração ou exclusão no
+Storage e, portanto, não substituem uma imagem publicada pela API direta.
+
+O banco grava URLs locais `/api/card-image?path=...`. Essa rota libera rascunho
+somente ao dono ou administrador e libera acesso anônimo apenas quando o caminho
+está referenciado na versão publicada de um cliente ativo. A resposta usa
+`private, no-store`, permitindo que vencimento ou cancelamento interrompa novas
+leituras imediatamente. A migration converte referências públicas antigas,
+confere propriedade dos caminhos e torna o bucket privado. Arquivos já baixados
+por visitantes não podem ser recolhidos.
+
+Não existe PRD vigente; esta decisão se apoia nas regras do projeto, no relatório
+de auditoria e na autorização expressa de 10/10/2026.

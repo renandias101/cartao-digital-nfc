@@ -53,6 +53,12 @@ export function AppShell({
 
   return (
     <div className="min-h-dvh bg-canvas xl:flex">
+      <a
+        href="#conteudo-principal"
+        className="sr-only fixed left-3 top-3 z-50 rounded-md bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-lg focus:not-sr-only"
+      >
+        Ir para o conteúdo principal
+      </a>
       <aside className="hidden w-64 shrink-0 bg-sidebar xl:block">
         <div className="sticky top-0 flex h-dvh flex-col px-4 py-7">
           <div className="px-2">
@@ -75,7 +81,7 @@ export function AppShell({
         />
       </header>
 
-      <div className="min-w-0 flex-1">{children}</div>
+      <div id="conteudo-principal" tabIndex={-1} className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }

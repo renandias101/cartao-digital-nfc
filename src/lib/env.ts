@@ -16,6 +16,18 @@ function ausente(nome: string): never {
   );
 }
 
+export function resolverSiteUrl(configurada?: string, dominioProducaoVercel?: string): string {
+  const urlConfigurada = configurada?.trim();
+  const configuradaEhLocal = urlConfigurada
+    ? /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(urlConfigurada)
+    : false;
+  const dominioVercel = dominioProducaoVercel?.trim();
+  const valor = dominioVercel && (!urlConfigurada || configuradaEhLocal)
+    ? `https://${dominioVercel}`
+    : urlConfigurada || "http://localhost:3000";
+  return valor.replace(/\/+$/, "");
+}
+
 export const publicEnv = {
   /** URL do projeto Supabase. */
   get supabaseUrl(): string {
@@ -32,8 +44,10 @@ export const publicEnv = {
 
   /** Origem usada para montar a URL pública gravada no NFC (PRD §6). Sem barra final. */
   get siteUrl(): string {
-    const valor = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-    return valor.replace(/\/+$/, "");
+    return resolverSiteUrl(
+      process.env.NEXT_PUBLIC_SITE_URL,
+      process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    );
   },
 
   /** WhatsApp de contato para renovação, exibido no painel do cliente (PRD §25). */

@@ -21,7 +21,7 @@ const admin = createClient(URL, SECRET, { auth: { autoRefreshToken: false, persi
 
 const BUCKET_ID = "card-images";
 const config = {
-  public: true, // imagens do cartão são vistas por qualquer visitante, sem sessão (PRD §62)
+  public: false, // toda leitura passa pela autorização de /api/card-image
   fileSizeLimit: 5 * 1024 * 1024, // 5 MB (PRD §10)
   allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"], // sem SVG: é executável no navegador
 };
@@ -44,4 +44,4 @@ if (existente) {
   }
 }
 
-console.log(`Bucket "${BUCKET_ID}" pronto: público, ≤5MB, jpeg/png/webp.`);
+console.log(`Bucket "${BUCKET_ID}" pronto: privado, ≤5MB, jpeg/png/webp.`);

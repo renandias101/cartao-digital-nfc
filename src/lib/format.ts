@@ -9,6 +9,11 @@ export function formatarData(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR", { timeZone: FUSO });
 }
 
+/** `expires_at` guarda o início do dia seguinte (D25); exibe o último dia válido. */
+export function formatarDataVencimento(iso: string): string {
+  return new Date(new Date(iso).getTime() - 1).toLocaleDateString("pt-BR", { timeZone: FUSO });
+}
+
 /** 04/10/2026 às 18:32 */
 export function formatarDataHora(iso: string): string {
   const d = new Date(iso);

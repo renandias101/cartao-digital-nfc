@@ -3,7 +3,6 @@ import test from "node:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import config from "../next.config";
 import { adicionarBotao, alternarAtivo, duplicarBotao, editarBotao, removerBotao, reordenarBotoes, validarBotoes } from "../src/lib/card/buttons";
 import { imageUploadPath, isImagePurpose, validateImageFile } from "../src/lib/card/image-upload";
 import { TIPOS_DE_BOTAO, TIPOS_PARA_CRIAR, type CardButton, type CardContent } from "../src/lib/card/types";
@@ -46,11 +45,12 @@ test("cria e duplica botões mesmo sem randomUUID (HTTP na rede local)", () => {
   }
 });
 
-test("transporte permite os 5 MB de imagem mais o multipart", () => {
-  const limit = config.experimental?.serverActions?.bodySizeLimit;
-  assert.equal(typeof limit, "number");
-  assert.ok(Number(limit) > UPLOAD_IMAGEM.tamanhoMaximoBytes);
-  assert.ok(Number(limit) <= 6 * 1024 * 1024);
+test("imagem de 5 MB usa envio direto privado, fora do corpo da Server Action", () => {
+  const field = readFileSync(join(process.cwd(), "src/app/painel/editor/image-field.tsx"), "utf8");
+  const actions = readFileSync(join(process.cwd(), "src/app/painel/editor/actions.ts"), "utf8");
+  assert.match(field, /uploadToSignedUrl/);
+  assert.match(field, /processarImagem/);
+  assert.doesNotMatch(actions, /FormData/);
 });
 
 test("mantém edição, ordem, ativação, remoção e limite de 10 botões", () => {

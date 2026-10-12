@@ -23,9 +23,10 @@ Perfis → Adaptador Claude Code → skills disponíveis.
 Perfis aplicáveis: Sistema-Web-Fullstack + Sistema-com-Dados-Pessoais +
 Sistema-Administrativo.
 
-A fonte de verdade do comportamento do produto é o **PRD v2**. Em conflito
-entre framework e PRD, o PRD define o comportamento e o conflito deve ser
-informado ao usuário antes de qualquer decisão que altere o produto.
+Não existe PRD vigente. As fontes de verdade são estas regras, as decisões
+técnicas registradas, os relatórios aprovados e as decisões expressas pelo
+responsável do produto. Referências históricas a seções de PRD não provam um
+requisito atual.
 
 ## Ordem de prioridade
 
@@ -34,8 +35,10 @@ informado ao usuário antes de qualquer decisão que altere o produto.
 
 ## Regras invioláveis do produto
 
-1. O NFC guarda apenas a URL. Nada que o cliente edite pode alterar
-   `username` ou a URL pública.
+1. O NFC guarda apenas a URL. O cliente não pode alterar `username` ou a URL
+   pública. O administrador pode alterá-los; cada endereço anterior vira alias
+   permanente do mesmo cliente, nunca reutilizável, para preservar NFCs já
+   entregues.
 2. A página pública serve **somente** a versão publicada. Rascunho — imagens
    incluídas — nunca pode vazar para o visitante.
 3. Isolamento garantido no backend/banco. Nunca confiar em id, slug ou
@@ -48,7 +51,7 @@ informado ao usuário antes de qualquer decisão que altere o produto.
 7. Nenhuma execução de conteúdo do cliente: texto como texto puro, URLs
    restritas a http/https, sem SVG em upload.
 8. Modelos e duplicação nunca carregam dado pessoal.
-9. Escopo travado: nada da lista do PRD §59 sem nova decisão de produto.
+9. Mudanças de escopo exigem decisão explícita do responsável do produto.
 
 ## Convenções técnicas
 

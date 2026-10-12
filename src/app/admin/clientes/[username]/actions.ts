@@ -3,13 +3,29 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { atualizarNomeCliente, salvarContatos, salvarObservacoes } from "@/lib/admin/clients";
+import { alterarUsernameCliente, salvarDadosCliente, salvarObservacoes } from "@/lib/admin/clients";
 import { excluirCliente } from "@/lib/admin/delete-client";
 import { lerPagamento } from "@/lib/admin/payments";
-import { redefinirSenha } from "@/lib/admin/reset-password";
+import { redefinirSenha, registrarAuditoriaResetSenha } from "@/lib/admin/reset-password";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export type AcaoState = { ok: boolean | null; mensagem: string | null };
+export type AcaoState = { ok: boolean | null; mensagem: string | null; auditoriaPendente?: boolean };
+
+export async function alterarUsernameAction(
+  clientId: string,
+  usernameAtual: string,
+  _estadoAnterior: AcaoState,
+  formData: FormData,
+): Promise<AcaoState> {
+  const resultado = await alterarUsernameCliente(
+    clientId,
+    usernameAtual,
+    String(formData.get("new_username") ?? ""),
+  );
+  if (!resultado.ok) return { ok: false, mensagem: resultado.mensagem };
+  revalidatePath("/admin", "layout");
+  redirect(`/admin/clientes/${resultado.username}`);
+}
 
 /**
  * Renovar/cancelar/excluir chamam funções do banco pela sessão do admin: a
@@ -94,7 +110,20 @@ export async function resetSenhaAction(
     return { ok: false, mensagem: resultado.mensagem };
   }
   revalidatePath(`/admin/clientes/${username}`);
-  return { ok: true, mensagem: "Senha redefinida com sucesso." };
+  return resultado.auditoriaPendente
+    ? { ok: true, mensagem: "Senha redefinida, mas o registro de auditoria falhou. Tente registrá-lo novamente sem alterar a senha.", auditoriaPendente: true }
+    : { ok: true, mensagem: "Senha redefinida com sucesso." };
+}
+
+export async function registrarAuditoriaSenhaAction(
+  clientId: string,
+  _estadoAnterior: AcaoState,
+  _formData: FormData,
+): Promise<AcaoState> {
+  const ok = await registrarAuditoriaResetSenha(clientId);
+  return ok
+    ? { ok: true, mensagem: "Registro de auditoria recuperado." }
+    : { ok: false, mensagem: "Não foi possível registrar a auditoria. Tente novamente.", auditoriaPendente: true };
 }
 
 export async function salvarNotasAction(
@@ -109,20 +138,19 @@ export async function salvarNotasAction(
   return { ok: true, mensagem: "Observações salvas." };
 }
 
-/** Nome (interno) e contato administrativo. O nome de usuário (URL do cartão) não muda. */
+/** Nome (interno) e contato administrativo. */
 export async function salvarDadosAction(
   clientId: string,
   username: string,
   _estadoAnterior: AcaoState,
   formData: FormData,
 ): Promise<AcaoState> {
-  const nome = await atualizarNomeCliente(clientId, username, String(formData.get("full_name") ?? ""));
-  if (!nome.ok) return { ok: false, mensagem: nome.mensagem };
-  const contatos = await salvarContatos(clientId, username, {
+  const resultado = await salvarDadosCliente(clientId, {
+    fullName: String(formData.get("full_name") ?? ""),
     whatsapp: String(formData.get("whatsapp") ?? ""),
     email: String(formData.get("email") ?? ""),
   });
-  if (!contatos.ok) return { ok: false, mensagem: contatos.mensagem };
+  if (!resultado.ok) return { ok: false, mensagem: resultado.mensagem };
   // Layout inteiro: o nome também aparece na lista e no suporte.
   revalidatePath("/admin", "layout");
   return { ok: true, mensagem: "Dados do cliente salvos." };

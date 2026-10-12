@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import {
-  enviarImagemAdminAction,
+  prepararImagemAdminAction,
+  processarImagemAdminAction,
   publicarAdminAction,
   restaurarAdminAction,
   salvarRascunhoAdminAction,
@@ -73,7 +74,8 @@ export default async function EditarCartaoDoClientePage(props: PageProps<"/admin
               salvarRascunho: salvarRascunhoAdminAction.bind(null, cliente.id),
               publicar: publicarAdminAction.bind(null, cliente.id),
               restaurar: restaurarAdminAction.bind(null, cliente.id),
-              enviarImagem: enviarImagemAdminAction.bind(null, cliente.id),
+              prepararImagem: prepararImagemAdminAction.bind(null, cliente.id),
+              processarImagem: processarImagemAdminAction.bind(null, cliente.id),
             }}
           />
         ) : (

@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { alterarStatusSuporteAction, classificarSuporteAction } from "@/app/admin/suporte/actions";
-import { IconAlert, IconCheck, IconEdit, IconExternal, IconHelp, IconUndo, IconUser } from "@/components/icons";
+import { SupportClassificationForm, SupportStatusForm } from "@/app/admin/suporte/support-request-actions";
+import { IconAlert, IconEdit, IconExternal, IconHelp, IconUser } from "@/components/icons";
 import { getActor } from "@/lib/auth/session";
 import { urlPublicaDoCartao } from "@/lib/env";
 import { formatarDataHora } from "@/lib/format";
-import { CATEGORIAS_SUPORTE } from "@/lib/support/categories";
+import { normalizarPagina } from "@/lib/pagination";
 import { contarPedidosAbertos, listarPedidosSuporte } from "@/lib/support/support-server";
 
 const ABAS = [
@@ -26,7 +26,13 @@ export default async function AdminSuportePage(props: PageProps<"/admin/suporte"
 
   const sp = await props.searchParams;
   const status = sp.status === "resolved" ? "resolved" : "open";
-  const [pedidos, abertos] = await Promise.all([listarPedidosSuporte({ status }), contarPedidosAbertos()]);
+  const paginaBruta = typeof sp.pagina === "string" ? Number(sp.pagina) : 1;
+  const pagina = normalizarPagina(sp.pagina);
+  const [resultado, abertos] = await Promise.all([listarPedidosSuporte({ status, pagina }), contarPedidosAbertos()]);
+  if (resultado && ((typeof sp.pagina === "string" && paginaBruta !== pagina) || pagina > resultado.totalPaginas)) {
+    redirect(`/admin/suporte?status=${status}&pagina=${Math.min(pagina, resultado.totalPaginas)}`);
+  }
+  const pedidos = resultado?.pedidos ?? null;
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
@@ -52,11 +58,17 @@ export default async function AdminSuportePage(props: PageProps<"/admin/suporte"
               }`}
             >
               {aba.rotulo}
-              {aba.valor === "open" && abertos > 0 ? ` (${abertos})` : ""}
+              {aba.valor === "open" && abertos !== null && abertos > 0 ? ` (${abertos})` : ""}
             </Link>
           );
         })}
       </nav>
+
+      {abertos === null ? (
+        <p role="alert" className="text-sm text-destructive">
+          Não foi possível carregar a contagem de pedidos abertos. A lista abaixo continua disponível.
+        </p>
+      ) : null}
 
       {pedidos === null ? (
         <p role="alert" className="ui-card p-5 text-sm text-muted-foreground">
@@ -137,48 +149,30 @@ export default async function AdminSuportePage(props: PageProps<"/admin/suporte"
 
                 <details className="rounded-xl border border-border px-3 py-2 text-sm">
                   <summary className="cursor-pointer py-1 font-medium">Atendimento (uso interno)</summary>
-                  <form action={classificarSuporteAction.bind(null, pedido.id)} className="flex flex-col gap-3 pt-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <label htmlFor={`categoria-${pedido.id}`} className="ui-label">Classificação</label>
-                        <select id={`categoria-${pedido.id}`} name="categoria" defaultValue={pedido.categoria} className="ui-input">
-                          {CATEGORIAS_SUPORTE.map((c) => (
-                            <option key={c.valor} value={c.valor}>{c.rotulo}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label htmlFor={`prioridade-${pedido.id}`} className="ui-label">Prioridade</label>
-                        <select id={`prioridade-${pedido.id}`} name="prioridade" defaultValue={pedido.priority} className="ui-input">
-                          <option value="normal">Normal</option>
-                          <option value="alta">Alta</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label htmlFor={`anotacao-${pedido.id}`} className="ui-label">Anotação interna</label>
-                      <textarea id={`anotacao-${pedido.id}`} name="anotacao" rows={2} maxLength={2000}
-                        defaultValue={pedido.adminNote ?? ""} className="ui-input" />
-                      <p className="ui-hint">Nunca aparece para o cliente.</p>
-                    </div>
-                    <button type="submit" className="ui-btn ui-btn-outline ui-btn-sm w-fit">Salvar atendimento</button>
-                  </form>
+                  <SupportClassificationForm id={pedido.id} categoria={pedido.categoria} prioridade={pedido.priority} anotacao={pedido.adminNote} />
                 </details>
 
-                <form action={alterarStatusSuporteAction.bind(null, pedido.id, pedido.status === "open")}>
-                  <button type="submit" className="ui-btn ui-btn-outline ui-btn-sm">
-                    {pedido.status === "open" ? <IconCheck /> : <IconUndo />}
-                    {pedido.status === "open" ? "Marcar como resolvido" : "Reabrir"}
-                  </button>
+                <div>
+                  <SupportStatusForm id={pedido.id} resolvido={pedido.status === "open"} />
                   {pedido.resolvedAt ? (
                     <span className="ml-3 text-xs text-muted-foreground">Resolvido em {formatarDataHora(pedido.resolvedAt)}</span>
                   ) : null}
-                </form>
+                </div>
               </li>
             );
           })}
         </ul>
       )}
+
+      {resultado && resultado.totalPaginas > 1 ? (
+        <nav aria-label="Paginação do suporte" className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <span className="text-zinc-600">{resultado.total} pedido(s) — página {pagina} de {resultado.totalPaginas}</span>
+          <div className="flex gap-2">
+            {pagina > 1 ? <Link href={`/admin/suporte?status=${status}&pagina=${pagina - 1}`} className="ui-btn ui-btn-outline ui-btn-sm">Anterior</Link> : null}
+            {pagina < resultado.totalPaginas ? <Link href={`/admin/suporte?status=${status}&pagina=${pagina + 1}`} className="ui-btn ui-btn-outline ui-btn-sm">Próxima</Link> : null}
+          </div>
+        </nav>
+      ) : null}
     </main>
   );
 }

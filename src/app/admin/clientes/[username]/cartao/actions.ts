@@ -9,7 +9,7 @@ import {
   salvarRascunhoDoCliente,
 } from "@/lib/admin/card-editing";
 import { getActor } from "@/lib/auth/session";
-import { enviarImagemDoFormulario, type PropositoImagem } from "@/lib/card/images";
+import { prepararUploadImagem, processarUploadImagem, type PropositoImagem } from "@/lib/card/images";
 import type { CardContent } from "@/lib/card/types";
 
 /**
@@ -38,13 +38,14 @@ export async function restaurarAdminAction(clientId: string): Promise<EstadoAcao
   return { ok: true, mensagem: "Alterações descartadas." };
 }
 
-export async function enviarImagemAdminAction(
-  clientId: string,
-  proposito: PropositoImagem,
-  formData: FormData,
-  buttonId?: string,
-): Promise<ResultadoUploadAction> {
+export async function prepararImagemAdminAction(clientId: string, proposito: PropositoImagem, buttonId?: string) {
+  const actor = await getActor();
+  if (!actor.logado || !actor.isAdmin) return { ok: false as const, mensagem: "Não autorizado." };
+  return prepararUploadImagem(proposito, buttonId, clientId);
+}
+
+export async function processarImagemAdminAction(clientId: string, path: string, proposito: PropositoImagem, buttonId?: string): Promise<ResultadoUploadAction> {
   const actor = await getActor();
   if (!actor.logado || !actor.isAdmin) return { ok: false, mensagem: "Não autorizado." };
-  return enviarImagemDoFormulario(proposito, formData, buttonId, clientId);
+  return processarUploadImagem(path, proposito, buttonId, clientId);
 }
