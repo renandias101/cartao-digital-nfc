@@ -4,6 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Cartão Digital",
   description: "Plataforma de cartões de visita digitais com NFC.",
+  verification: {
+    google: "leDCsmMTvHfB6CdC44IL7jJVOvi8nCSqRjW2WWCZ3sY",
+  },
 };
 
 // Prioridade mobile-first definida no PRD (§51). `maximumScale` fica livre
