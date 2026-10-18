@@ -67,16 +67,31 @@ export async function fulfillPasswordResetRequest(requestId: number, newPassword
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: request, error: readError } = await supabase.from("password_reset_requests")
-    .select("client_id").eq("id", requestId).eq("status", "pending").maybeSingle();
-  if (readError || !request?.client_id) return { ok: false as const, message: "Pedido pendente não encontrado." };
+  const { data: claims, error: claimError } = await supabase.rpc("admin_claim_password_reset", { p_request_id: requestId });
+  const claim = claims?.[0] as { client_id?: string; claim_token?: string } | undefined;
+  if (claimError || !claim?.client_id || !claim.claim_token) {
+    return { ok: false as const, message: "Pedido pendente não encontrado ou já está sendo atendido." };
+  }
 
   const admin = createSupabaseAdminClient();
-  const { error: authError } = await admin.auth.admin.updateUserById(request.client_id, { password: newPassword });
-  if (authError) return { ok: false as const, message: "Não foi possível redefinir a senha. O pedido continua pendente." };
+  const { error: authError } = await admin.auth.admin.updateUserById(claim.client_id, { password: newPassword });
+  if (authError) {
+    await supabase.rpc("admin_release_password_reset_claim", {
+      p_request_id: requestId,
+      p_claim_token: claim.claim_token,
+    });
+    return { ok: false as const, message: "Não foi possível redefinir a senha. O pedido continua pendente." };
+  }
 
-  const { error: completionError } = await supabase.rpc("admin_complete_password_reset", { p_request_id: requestId });
+  const { error: completionError } = await supabase.rpc("admin_complete_password_reset", {
+    p_request_id: requestId,
+    p_claim_token: claim.claim_token,
+  });
   if (completionError) {
+    await supabase.rpc("admin_release_password_reset_claim", {
+      p_request_id: requestId,
+      p_claim_token: claim.claim_token,
+    });
     return { ok: false as const, message: "A senha foi alterada, mas o atendimento não foi registrado. O pedido continua pendente; repita a redefinição para concluir." };
   }
   return { ok: true as const, message: "Senha redefinida e pedido marcado como atendido." };

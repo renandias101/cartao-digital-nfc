@@ -347,6 +347,11 @@ test("editor desktop/mobile: HTTP, botões e falha/retentativa de upload", {
     await until("document.querySelectorAll('[data-digital-card] details').length === 3");
     await evaluate("document.querySelectorAll('[data-digital-card] summary').forEach(el=>el.click())");
     assert.equal(await evaluate("document.querySelectorAll('[data-digital-card] details[open]').length"), 3);
+    await evaluate(`Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true});
+      document.execCommand = command => command === 'copy';
+      [...document.querySelectorAll('[data-digital-card] details button')]
+        .find(button => button.textContent.includes('Copiar chave')).click()`);
+    await until("[...document.querySelectorAll('[data-digital-card] details button')].some(button => button.textContent.includes('Copiado com sucesso.'))");
     // Wi-Fi abre em modal, com a senha e o botão de copiar.
     await evaluate("document.querySelector('[data-digital-card] button[data-button-id=\"wifi\"]').click()");
     assert.ok(await evaluate("document.querySelector('[data-digital-card] dialog[open]')?.textContent.includes('Senha: senha-teste')"));

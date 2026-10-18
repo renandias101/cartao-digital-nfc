@@ -1390,6 +1390,13 @@ A migration `20261012120000_password_reset_requests.sql` foi aplicada no
 Supabase de produção em 12/10/2026. O histórico local e remoto foi reconciliado
 e validado com `supabase db push --dry-run`.
 
+Em 18/10/2026, a correção incremental
+`20261018150000_password_reset_concurrency_and_retention.sql` passou a
+serializar as quotas por hash, reservar o pedido durante a alteração no Auth
+e programar expurgo horário dos eventos com mais de 24 horas. A aplicação da
+migration no ambiente remoto permanece condicionada à etapa coordenada de
+backup, Preview e MFA.
+
 ## D79 — A raiz do sistema redireciona para o login
 
 **Data:** 12/10/2026 · **Origem:** decisão expressa do responsável do produto
@@ -1397,3 +1404,24 @@ e validado com `supabase db push --dry-run`.
 O acesso a `/` redireciona imediatamente para `/login`. Os cartões públicos
 continuam em `/{username}` e as regras de publicação, status e página neutra
 permanecem inalteradas.
+
+## D80 — Backup local inclui integridade por objeto e exige restauração isolada
+
+**Data:** 18/10/2026 · **Origem:** auditoria de segurança e continuidade
+
+O backup do bucket privado `card-images` registra caminho, tamanho e SHA-256 de
+cada objeto. Em 18/10/2026, os 10 objetos baixados totalizaram 548.610 bytes e
+todos os hashes foram confirmados localmente. Dados reais permanecem em
+`backups/`, pasta ignorada pelo Git.
+
+O dump lógico de banco/Auth foi gerado com `pg_dump` 17.11 e uma função de login
+temporária criada pela CLI autenticada do Supabase. A credencial existiu apenas
+na memória do processo. O arquivo customizado contém o banco, Auth e metadados
+do Storage; `roles.sql` omite senhas de funções globais. Hashes e catálogo foram
+verificados, e arquivos auxiliares em SQL aberto foram removidos após o teste.
+
+A camada da aplicação foi restaurada em PGlite isolado usando o esquema das
+migrations remotas e os dados extraídos do dump. O teste recuperou as entidades
+centrais e confirmou a legibilidade do catálogo de `auth.users`. Isso não prova
+o runtime completo do Supabase Auth; essa prova exige outro projeto Supabase ou
+ambiente local completo. O dump e os objetos do Storage continuam fora do Git.

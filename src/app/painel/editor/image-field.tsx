@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRef, useState, useTransition } from "react";
 
 import { useEditorActions } from "@/app/painel/editor/editor-actions";
@@ -133,7 +132,9 @@ export function ImageField({
         </div>
         <div className={`${styles.imagePreview} ${redondo ? styles.imagePreviewRound : ""}`} aria-busy={pending}>
           {valor ? (
-            <Image
+            // A rota privada precisa receber os cookies do navegador em toda leitura.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
               src={valor}
               alt=""
               width={redondo ? 112 : 320}
@@ -190,7 +191,8 @@ export function ImageField({
     <div className="flex min-w-0 flex-col gap-2">
       <span className="ui-label">{label}</span>
       {valor ? (
-        <Image
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
           src={valor}
           alt=""
           width={formato === "quadrado" ? 64 : 112}

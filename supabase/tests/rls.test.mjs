@@ -153,6 +153,7 @@ async function principal() {
     "20261010160000_private_card_images.sql",
     "20261012120000_password_reset_requests.sql",
     "20261012150000_admin_mfa_aal2.sql",
+    "20261018150000_password_reset_concurrency_and_retention.sql",
   ];
   for (const m of migracoes) {
     await db.exec(readFileSync(join(AQUI, "..", "migrations", m), "utf8"));
@@ -2906,26 +2907,27 @@ async function principal() {
       ('${RESET_CLIENT_2}', 'reset-ativo-2', 'Reset Ativo 2', 3, now() + interval '3 months');
   `);
   const HASH_ORIGEM = "a".repeat(64);
+  const HASH_USUARIO = "1".repeat(64);
   const pedidoValido = await comoPapelConfirmando(db, "service_role", null,
-    `select public.request_password_reset('RESET-ATIVO', '${HASH_ORIGEM}') as result`);
+    `select public.request_password_reset('RESET-ATIVO', '${HASH_USUARIO}', '${HASH_ORIGEM}') as result`);
   verificar("conta ativa cria pedido sem expor detalhes", pedidoValido.ok && pedidoValido.resultado.rows[0].result === "accepted");
   await comoPapelConfirmando(db, "service_role", null,
-    `select public.request_password_reset('reset-ativo', '${HASH_ORIGEM}')`);
+    `select public.request_password_reset('reset-ativo', '${HASH_USUARIO}', '${HASH_ORIGEM}')`);
   const duplicados = await db.query(`select count(*)::int as n from public.password_reset_requests
     where client_id = '${RESET_CLIENT}' and status = 'pending'`);
   verificar("reenvio nao duplica pedido pendente", duplicados.rows[0].n === 1);
 
   await comoPapelConfirmando(db, "service_role", null,
-    `select public.request_password_reset('nao-existe', '${"b".repeat(64)}')`);
+    `select public.request_password_reset('nao-existe', '${"2".repeat(64)}', '${"b".repeat(64)}')`);
   await comoPapelConfirmando(db, "service_role", null,
-    `select public.request_password_reset('vencido', '${"c".repeat(64)}')`);
+    `select public.request_password_reset('vencido', '${"3".repeat(64)}', '${"c".repeat(64)}')`);
   const somenteAtivo = await db.query("select count(*)::int as n from public.password_reset_requests");
   verificar("contas inexistente e inativa recebem resposta igual sem criar fila", somenteAtivo.rows[0].n === 1);
 
   const terceira = await comoPapelConfirmando(db, "service_role", null,
-    `select public.request_password_reset('reset-ativo', '${HASH_ORIGEM}') as result`);
+    `select public.request_password_reset('reset-ativo', '${HASH_USUARIO}', '${HASH_ORIGEM}') as result`);
   const limitada = await comoPapelConfirmando(db, "service_role", null,
-    `select public.request_password_reset('reset-ativo', '${HASH_ORIGEM}') as result`);
+    `select public.request_password_reset('reset-ativo', '${HASH_USUARIO}', '${HASH_ORIGEM}') as result`);
   verificar("limite por usuario e aplicado no servidor", terceira.resultado.rows[0].result === "accepted"
     && limitada.resultado.rows[0].result === "rate_limited");
   verificar("anon nao consulta pedidos", !(await comoPapel(db, "anon", null,
@@ -2937,10 +2939,19 @@ async function principal() {
   verificar("somente administrador lista e identifica a conta", adminVePedido.length === 1
     && adminVePedido[0].client_username === "reset-ativo");
   const RESET_ID = adminVePedido[0].id;
+  verificar("cliente comum nao reserva pedido", !(await comoPapel(db, "authenticated", RESET_CLIENT,
+    `select public.admin_claim_password_reset(${RESET_ID})`)).ok);
+  const reserva = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select * from public.admin_claim_password_reset(${RESET_ID})`);
+  const TOKEN_RESERVA = reserva.resultado.rows[0]?.claim_token;
+  const segundaReserva = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select * from public.admin_claim_password_reset(${RESET_ID})`);
+  verificar("reserva atomica impede dois atendimentos simultaneos", reserva.ok && TOKEN_RESERVA
+    && segundaReserva.ok && segundaReserva.resultado.rows.length === 0, segundaReserva.erro);
   verificar("cliente comum nao conclui pedido", !(await comoPapel(db, "authenticated", RESET_CLIENT,
-    `select public.admin_complete_password_reset(${RESET_ID})`)).ok);
+    `select public.admin_complete_password_reset(${RESET_ID}, '${TOKEN_RESERVA}')`)).ok);
   const concluiu = await comoPapelConfirmando(db, "authenticated", ADMIN,
-    `select public.admin_complete_password_reset(${RESET_ID})`);
+    `select public.admin_complete_password_reset(${RESET_ID}, '${TOKEN_RESERVA}')`);
   const atendido = await db.query(`select status, result, handled_by, handled_at from public.password_reset_requests where id = ${RESET_ID}`);
   verificar("admin conclui somente pedido pendente e registra responsavel", concluiu.ok
     && atendido.rows[0].status === "attended" && atendido.rows[0].result === "password_reset"
@@ -2949,15 +2960,33 @@ async function principal() {
     where action = 'password_reset' and detail->>'request_id' = '${RESET_ID}'`)).rows[0].n === 1);
 
   const novoPedido = await comoPapelConfirmando(db, "service_role", null,
-    `select public.request_password_reset('reset-ativo-2', '${"d".repeat(64)}')`);
+    `select public.request_password_reset('reset-ativo-2', '${"4".repeat(64)}', '${"d".repeat(64)}')`);
   const novoId = (await db.query(`select id from public.password_reset_requests where client_id = '${RESET_CLIENT_2}' and status = 'pending'`)).rows[0].id;
   verificar("encerramento sem motivo e recusado e mantem pedido pendente", !(await comoPapel(db, "authenticated", ADMIN,
     `select public.admin_close_password_reset(${novoId}, '')`)).ok
     && (await db.query(`select status from public.password_reset_requests where id = ${novoId}`)).rows[0].status === "pending");
+  const reservaFechamento = await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select * from public.admin_claim_password_reset(${novoId})`);
+  const TOKEN_FECHAMENTO = reservaFechamento.resultado.rows[0]?.claim_token;
+  verificar("pedido reservado nao pode ser encerrado em paralelo", !(await comoPapel(db, "authenticated", ADMIN,
+    `select public.admin_close_password_reset(${novoId}, 'Tentativa concorrente')`)).ok);
+  await comoPapelConfirmando(db, "authenticated", ADMIN,
+    `select public.admin_release_password_reset_claim(${novoId}, '${TOKEN_FECHAMENTO}')`);
   const encerrou = await comoPapelConfirmando(db, "authenticated", ADMIN,
     `select public.admin_close_password_reset(${novoId}, 'Cliente recuperou o acesso por outro canal')`);
   verificar("admin encerra sem redefinir e registra motivo", novoPedido.ok && encerrou.ok
     && (await db.query(`select status, result, resolution_reason from public.password_reset_requests where id = ${novoId}`)).rows[0].result === "closed_without_reset");
+
+  await db.exec(`insert into private.password_reset_attempts (username_hash, source_hash, created_at)
+    values ('${"e".repeat(64)}', '${"f".repeat(64)}', now() - interval '25 hours')`);
+  await db.exec("select private.purge_password_reset_attempts()");
+  verificar("expurgo remove eventos com mais de 24 horas",
+    (await db.query("select count(*)::int as n from private.password_reset_attempts where created_at < now() - interval '24 hours' ")).rows[0].n === 0);
+  const colunasTentativas = await db.query(`select column_name from information_schema.columns
+    where table_schema = 'private' and table_name = 'password_reset_attempts'`);
+  verificar("eventos armazenam hash do usuario sem username em texto",
+    colunasTentativas.rows.some((row) => row.column_name === "username_hash")
+    && !colunasTentativas.rows.some((row) => row.column_name === "username"));
 
   await db.close();
 

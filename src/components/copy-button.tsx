@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { copyText } from "@/lib/browser/copy-text";
+
 /**
  * Botão de copiar com feedback visual (PRD §47: "Copiado com sucesso.").
  * `className` só troca a aparência (o painel usa o estilo dele); sem ela, o
@@ -16,25 +18,18 @@ export function CopyButton({
   label: string;
   className?: string;
 }) {
-  const [copiado, setCopiado] = useState(false);
+  const [result, setResult] = useState<"ok" | "error" | null>(null);
 
   return (
     <button
       type="button"
       onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(value);
-          setCopiado(true);
-          setTimeout(() => setCopiado(false), 2000);
-        } catch {
-          // `navigator.clipboard` pode falhar (contexto não seguro,
-          // permissão negada) — a página não deve quebrar por isso, só o
-          // feedback de sucesso não aparece.
-        }
+        setResult((await copyText(value)) ? "ok" : "error");
+        setTimeout(() => setResult(null), 2000);
       }}
       className={className}
     >
-      {copiado ? "Copiado com sucesso." : label}
+      {result === "ok" ? "Copiado com sucesso." : result === "error" ? "Não foi possível copiar." : label}
     </button>
   );
 }

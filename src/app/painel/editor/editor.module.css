@@ -44,6 +44,8 @@
 
 .headerMeta { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
+.headerAccountAction { margin-left: auto; }
+
 .metaChip {
   display: inline-flex;
   align-items: center;
@@ -375,6 +377,17 @@
 .browserViewport { max-height: calc(100dvh - 240px); overflow-y: auto; overscroll-behavior: contain; }
 
 /* ---------- Pontos de quebra ---------- */
+
+@media (max-width: 639px) {
+  .editorHeader { position: relative; }
+  .headerTitle { padding-right: 84px; }
+  .headerAccountAction {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    margin-left: 0;
+  }
+}
 
 @media (min-width: 640px) {
   .page { padding: 16px 24px; }

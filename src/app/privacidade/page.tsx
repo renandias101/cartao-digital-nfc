@@ -61,7 +61,7 @@ export default function PrivacyPage() {
           <ul className="list-disc space-y-2 pl-5 leading-relaxed text-zinc-700">
             <li>dados da conta e do cartão permanecem durante a prestação do serviço;</li>
             <li>uma conta cancelada torna-se elegível para exclusão após três meses; a remoção é feita pela administração após verificar obrigações pendentes;</li>
-            <li>tentativas de recuperação de senha são mantidas por até 24 horas para aplicar limites de frequência;</li>
+            <li>tentativas de recuperação de senha são mantidas para aplicar limites de frequência; uma rotina horária exclui os registros depois que completam 24 horas;</li>
             <li>pedidos de suporte e recuperação concluídos são revisados periodicamente e mantidos somente pelo prazo necessário ao atendimento e à segurança;</li>
             <li>registros financeiros e de auditoria podem ser preservados pelo prazo exigido para obrigações legais, prevenção de fraude e defesa de direitos;</li>
             <li>cópias de segurança seguem o ciclo de retenção do provedor e deixam de ser usadas para operação normal após a exclusão.</li>

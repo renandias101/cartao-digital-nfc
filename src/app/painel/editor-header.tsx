@@ -47,7 +47,7 @@ export function EditorHeader({
               {status === "active" ? "Vencimento" : "Venceu em"}: {expiresAt}
             </span>
           ) : null}
-          {accountAction ? <div className="ml-auto">{accountAction}</div> : null}
+          {accountAction ? <div className={editorStyles.headerAccountAction}>{accountAction}</div> : null}
         </div>
         <div className={editorStyles.headerLinkRow}>
           <CardLinkBox url={publicUrl} />

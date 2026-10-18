@@ -12,7 +12,9 @@ const contentSecurityPolicy = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "upgrade-insecure-requests",
+  // O servidor local usa HTTP. No Safari móvel, esta diretiva também
+  // promoveria CSS/JS locais para HTTPS e deixaria a página sem estilos.
+  ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
 /**
@@ -22,13 +24,11 @@ const contentSecurityPolicy = [
  * tem acesso a `process.env` normalmente.
  */
 const nextConfig: NextConfig = {
-  // Next 16 bloqueia imagens locais com query string por padrão. Este é o
-  // único endpoint local de imagem dinâmica; ele valida caminho e permissão
-  // no servidor antes de devolver qualquer arquivo privado. A arte estática
-  // do login também precisa ser declarada quando localPatterns está presente.
+  // Imagens de cartão nunca passam pelo otimizador: /api/card-image revalida
+  // a permissão em toda leitura e responde sem cache. Manter a rota fora de
+  // localPatterns também impede aquecimento manual via /_next/image.
   images: {
     localPatterns: [
-      { pathname: "/api/card-image" },
       { pathname: "/images/login-reference-renan.webp" },
     ],
   },
@@ -51,7 +51,9 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Content-Security-Policy", value: contentSecurityPolicy },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
-          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+          ...(isDev ? [] : [
+            { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+          ]),
         ],
       },
     ];

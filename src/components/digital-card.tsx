@@ -1,4 +1,3 @@
-import Image from "next/image";
 import type { CSSProperties } from "react";
 import { ButtonView, FeaturedLink } from "@/app/[username]/button-view";
 import { CardProfession } from "@/components/card-profession";
@@ -46,12 +45,16 @@ export function DigitalCard({ content, preview = false, footer }: {
   return (
     <article className={styles.card} style={style} data-digital-card>
       <div className={styles.cover} aria-hidden="true">
-        {content.banner ? <Image src={content.banner} alt="" fill sizes="(max-width: 420px) 100vw, 420px" className={styles.coverImage} />
+        {/* Imagens privadas devem chamar /api/card-image diretamente para que
+            cada leitura revalide a sessão e nunca passe pelo cache do otimizador. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {content.banner ? <img src={content.banner} alt="" className={styles.coverImage} />
           : <div className={styles.decoration} />}
       </div>
       <header className={styles.profile}>
-        {content.profilePhoto ? <Image src={content.profilePhoto} alt="" width={200} height={200}
-          sizes="(max-width: 420px) 48vw, 200px" className={styles.avatar} loading="eager" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {content.profilePhoto ? <img src={content.profilePhoto} alt="" width={200} height={200}
+          className={styles.avatar} loading="eager" />
           : <div className={`${styles.avatar} ${styles.avatarFallback}`} aria-hidden="true">
               {getCardInitials(content.displayName)}
             </div>}

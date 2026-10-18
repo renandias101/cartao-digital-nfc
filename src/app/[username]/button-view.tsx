@@ -1,4 +1,3 @@
-import Image from "next/image";
 import type { ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { IconChevronDown, IconLink } from "@/components/icons";
@@ -23,7 +22,9 @@ export function ButtonIcon({ button, className, fallback = resolveButtonIcon(but
   fallback?: SystemIconKey;
 }) {
   if (isUploadedIcon(button.icon)) {
-    return <Image src={button.icon} alt="" width={32} height={32} className={className} />;
+    // Ícones privados devem passar diretamente pela rota que valida a sessão.
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={button.icon} alt="" width={32} height={32} className={className} />;
   }
   // Chave desconhecida (ex.: salva por uma versão futura) cai no ícone automático, e este no de link.
   const Icon = SYSTEM_ICON_COMPONENTS[isSystemIconKey(button.icon) ? button.icon : fallback] ?? IconLink;

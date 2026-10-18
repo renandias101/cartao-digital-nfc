@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { IconCheck, IconCopy, IconLink } from "@/components/icons";
 import styles from "@/app/painel/editor/editor.module.css";
+import { copyText } from "@/lib/browser/copy-text";
 
 const MENSAGEM_MS = 3000;
 
@@ -11,32 +12,6 @@ const MENSAGEM_MS = 3000;
  * Copia pela API moderna e, se ela não existir ou for recusada (página em
  * HTTP fora do localhost, permissão negada), por um campo temporário.
  */
-async function copiarTexto(texto: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(texto);
-      return true;
-    }
-  } catch {
-    // Cai para o método alternativo abaixo.
-  }
-  const campo = document.createElement("textarea");
-  campo.value = texto;
-  campo.setAttribute("readonly", "");
-  campo.style.position = "fixed";
-  campo.style.opacity = "0";
-  document.body.appendChild(campo);
-  campo.select();
-  campo.setSelectionRange(0, texto.length);
-  try {
-    return document.execCommand("copy");
-  } catch {
-    return false;
-  } finally {
-    campo.remove();
-  }
-}
-
 /** Link público do cartão com botão de copiar e mensagem que some em 3 segundos. */
 export function CardLinkBox({ url }: { url: string }) {
   const [resultado, setResultado] = useState<"ok" | "erro" | null>(null);
@@ -70,7 +45,7 @@ export function CardLinkBox({ url }: { url: string }) {
       ) : null}
       <button
         type="button"
-        onClick={async () => setResultado((await copiarTexto(url)) ? "ok" : "erro")}
+        onClick={async () => setResultado((await copyText(url)) ? "ok" : "erro")}
         aria-label="Copiar link do cartão"
         title="Copiar link"
         className={`ui-btn ui-btn-ghost ui-btn-icon shrink-0 ${copiado ? "text-success" : ""}`}
